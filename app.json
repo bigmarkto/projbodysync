@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "BodySync",
+    "slug": "bodysync",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0EA5E9"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0EA5E9"
+      }
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}

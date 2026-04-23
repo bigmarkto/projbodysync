@@ -30,6 +30,8 @@ yarn-error.*
 # Local env files
 .env*.local
 .env
+.jsonfiles
+.omc
 
 # TypeScript
 *.tsbuildinfo
@@ -46,3 +48,5 @@ logs
 
 # OS
 Thumbs.db
+.openclaude
+

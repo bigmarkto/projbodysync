@@ -1,37 +1,44 @@
+import 'react-native-gesture-handler';
 import React from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'native-base';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import ThemeProvider from './src/context/ThemeProvider';
+import { HomeScreen, DetailsScreen } from './src/screens';
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <View style={styles.container}>
-        <Text style={styles.title}>BodySync</Text>
-        <Text style={styles.subtitle}>Base project ready. Start building!</Text>
-        <StatusBar style="auto" />
-      </View>
+      <ThemeProvider>
+        <NavigationContainer>
+          <StatusBar backgroundColor="#6366F1" barStyle="light-content" />
+          <Stack.Navigator
+            initialRouteName="Home"
+            screenOptions={{
+              headerStyle: {
+                backgroundColor: '#6366F1',
+              },
+              headerTintColor: '#fff',
+              headerTitleStyle: {
+                fontWeight: 'bold',
+              },
+            }}>
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
+              options={{ title: 'BodySync' }}
+            />
+            <Stack.Screen
+              name="Details"
+              component={DetailsScreen}
+              options={{ title: 'Details' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0EA5E9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  title: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -1,
-  },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 15,
-    color: '#E0F2FE',
-  },
-});

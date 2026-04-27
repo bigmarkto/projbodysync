@@ -1,5 +1,7 @@
 import React from "react";
-import { Text as NBText, TextProps as NBTextProps } from "native-base";
+import { Text as NBText } from "native-base";
+
+type NBTextProps = React.ComponentProps<typeof NBText>;
 
 interface CustomTextProps extends NBTextProps {
   variant?:

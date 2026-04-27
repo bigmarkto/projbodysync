@@ -10,7 +10,6 @@ const theme = extendTheme({
   lineHeights: typography.lineHeight,
   fontWeights: typography.fontWeight,
   sizes: {
-    // Common component sizes
     xs: 24,
     sm: 32,
     md: 40,
@@ -20,18 +19,18 @@ const theme = extendTheme({
   },
   radii: {
     none: 0,
-    sm: 4,
-    md: 8,
-    lg: 12,
-    xl: 16,
+    sm: 6,
+    md: 10,
+    lg: 14,
+    xl: 20,
     full: 9999,
   },
   shadows: {
     none: "none",
-    sm: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
-    md: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-    lg: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-    xl: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+    sm: "0 1px 3px 0 rgba(0, 0, 0, 0.06)",
+    md: "0 4px 8px -1px rgba(0, 0, 0, 0.08)",
+    lg: "0 10px 20px -3px rgba(0, 0, 0, 0.08)",
+    xl: "0 20px 30px -5px rgba(0, 0, 0, 0.08)",
   },
   components: {
     Text: {

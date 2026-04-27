@@ -9,7 +9,7 @@ interface CustomBadgeProps extends IBadgeProps {
 
 const Badge = ({
   variant = "default",
-  size = "md",
+  size = "sm",
   children,
   ...props
 }: CustomBadgeProps) => {
@@ -38,14 +38,15 @@ const Badge = ({
 
   const sizeStyles = {
     sm: {
-      paddingX: 2,
-      paddingY: 1,
+      paddingX: 3,
+      paddingY: 15,
       fontSize: "xs",
     },
     md: {
-      paddingX: 2.5,
-      paddingY: 1.5,
+      paddingX: 4,
+      paddingY: 15,
       fontSize: "sm",
+      minWidth: 24,
     },
   };
 

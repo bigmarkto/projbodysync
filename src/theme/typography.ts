@@ -1,70 +1,73 @@
-// Typography system optimized for readability and visual hierarchy
+// Tipografia com escala refinada para leitura confortável em mobile
 export default {
   fontSize: {
     xs: 11,
-    sm: 12,
-    md: 14,
-    lg: 16,
-    xl: 18,
-    "2xl": 20,
-    "3xl": 24,
-    "4xl": 32,
+    sm: 13,
+    md: 15,
+    lg: 17,
+    xl: 20,
+    "2xl": 24,
+    "3xl": 28,
+    "4xl": 36,
   },
   lineHeight: {
-    tight: 1.2,
+    tight: 1.25,
     normal: 1.5,
-    relaxed: 1.75,
+    relaxed: 1.7,
   },
   fontWeight: {
     thin: "100",
     light: "300",
-    normal: "400",
+    regular: "400",
     medium: "500",
     semibold: "600",
     bold: "700",
     extrabold: "800",
   },
-  // Typography presets for semantic usage
   variants: {
     h1: {
       fontSize: "4xl",
       fontWeight: "bold",
       lineHeight: "tight",
+      letterSpacing: -0.5,
     },
     h2: {
       fontSize: "3xl",
       fontWeight: "semibold",
       lineHeight: "tight",
+      letterSpacing: -0.3,
     },
     h3: {
       fontSize: "2xl",
       fontWeight: "semibold",
       lineHeight: "normal",
+      letterSpacing: -0.2,
     },
     subtitle: {
       fontSize: "lg",
-      fontWeight: "semibold",
+      fontWeight: "medium",
       lineHeight: "normal",
     },
     body: {
       fontSize: "md",
-      fontWeight: "normal",
-      lineHeight: "normal",
+      fontWeight: "regular",
+      lineHeight: "relaxed",
     },
     bodySmall: {
       fontSize: "sm",
-      fontWeight: "normal",
+      fontWeight: "regular",
       lineHeight: "normal",
     },
     caption: {
       fontSize: "xs",
-      fontWeight: "normal",
+      fontWeight: "regular",
       lineHeight: "tight",
     },
     label: {
       fontSize: "sm",
       fontWeight: "semibold",
       lineHeight: "normal",
+      letterSpacing: 0.3,
     },
   },
 };

@@ -1,12 +1,13 @@
 import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { View, ViewProps } from "native-base";
+import { View } from "native-base";
 
-interface ContainerProps extends ViewProps {
+interface ContainerProps {
   children: React.ReactNode;
   safeArea?: boolean;
   padding?: "sm" | "md" | "lg" | "xl" | number;
   variant?: "default" | "compact" | "spacious";
+  [key: string]: any;
 }
 
 const Container = ({

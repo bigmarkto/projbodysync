@@ -77,14 +77,14 @@ const Button = ({
           variant === "primary" || variant === "danger" ? "white" : undefined,
         ...props._text,
       }}
-      startIcon={
-        isLoading ? (
+      {...(isLoading && {
+        startIcon: (
           <Spinner
             size="sm"
             color={variant === "secondary" ? "primary.500" : "white"}
           />
-        ) : null
-      }
+        ),
+      })}
     >
       {props.children}
     </NBButton>

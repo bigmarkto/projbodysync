@@ -5,20 +5,22 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { PaperProvider } from "react-native-paper";
+import paperTheme from "./src/theme/paperTheme";
 import ThemeProvider from "./src/context/ThemeProvider";
-import { HomeScreen, DetailsScreen } from "./src/screens";
+import { ShowcaseScreen } from "./src/screens";
+import { RootStackParamList } from "./src/navigation/types";
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <PaperProvider>
+      <PaperProvider theme={paperTheme}>
         <ThemeProvider>
           <NavigationContainer>
             <StatusBar backgroundColor="#6366F1" barStyle="light-content" />
             <Stack.Navigator
-              initialRouteName="Home"
+              initialRouteName="Showcase"
               screenOptions={{
                 headerStyle: {
                   backgroundColor: "#FFFFFF",
@@ -33,19 +35,11 @@ export default function App() {
               }}
             >
               <Stack.Screen
-                name="Home"
-                component={HomeScreen}
+                name="Showcase"
+                component={ShowcaseScreen}
                 options={{
                   title: "BodySync",
                   headerShown: false,
-                }}
-              />
-              <Stack.Screen
-                name="Details"
-                component={DetailsScreen}
-                options={{
-                  title: "Details",
-                  headerBackTitleVisible: false,
                 }}
               />
             </Stack.Navigator>

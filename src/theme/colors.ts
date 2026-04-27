@@ -1,60 +1,55 @@
-// Minimalist, semantic color system
-// Primary accent: Indigo (#6366F1)
-// Neutral palette: Slate grays
-
+// Palette sofisticada e minimalista — tons neutros azulados, primário elegante
 export default {
-  // Primary brand color
   primary: {
-    50: "#EEF2FF",
-    100: "#E0E7FF",
-    500: "#6366F1", // Main primary
-    600: "#4F46E5",
-    700: "#4338CA",
+    50: "#F0F4FF",
+    100: "#D9E2FC",
+    200: "#A6C1F5",
+    300: "#7BA4F0",
+    400: "#5B83E8",
+    500: "#4F6AF0", // Primary — azul elegante
+    600: "#3B55D9",
+    700: "#2A41BF",
+    800: "#1C30A0",
+    900: "#0F217A",
   },
 
-  // Neutral colors (background, text, borders)
   neutral: {
     0: "#FFFFFF",
-    50: "#F9FAFB",
-    100: "#F3F4F6",
-    200: "#E5E7EB",
-    300: "#D1D5DB",
-    400: "#9CA3AF",
-    500: "#6B7280",
-    600: "#4B5563",
-    700: "#374151",
-    800: "#1F2937",
-    900: "#111827",
+    50: "#F8F9FC",
+    100: "#F1F2F6",
+    200: "#E4E5ED",
+    300: "#C9CCD6",
+    400: "#9EA2B1",
+    500: "#747888",
+    600: "#555968",
+    700: "#3B3F4A",
+    800: "#252833",
+    900: "#13161F",
   },
 
-  // Semantic backgrounds
-  background: "#FAFBFC",
+  background: "#F8F9FC",
   surface: "#FFFFFF",
-  surfaceVariant: "#F9FAFB",
+  surfaceVariant: "#F1F2F6",
 
-  // Text colors (with proper contrast)
   text: {
-    primary: "#111827", // High contrast for body text
-    secondary: "#6B7280", // Medium for secondary text
-    tertiary: "#9CA3AF", // Low for muted text
-    inverse: "#FFFFFF", // For dark backgrounds
+    primary: "#13161F",
+    secondary: "#555968",
+    tertiary: "#9EA2B1",
+    inverse: "#FFFFFF",
   },
 
-  // Feedback colors (semantic, muted)
-  success: "#059669",
-  successLight: "#ECFDF5",
-  error: "#DC2626",
-  errorLight: "#FEE2E2",
-  warning: "#D97706",
-  warningLight: "#FEF3C7",
-  info: "#0284C7",
-  infoLight: "#F0F9FF",
+  success: "#0E9F6E",
+  successLight: "#E8F8F1",
+  error: "#E53E3E",
+  errorLight: "#FDECEC",
+  warning: "#D68A1E",
+  warningLight: "#FDF4E3",
+  info: "#3B82F6",
+  infoLight: "#EBF3FE",
 
-  // Interactive states
-  disabled: "#D1D5DB",
-  disabledText: "#9CA3AF",
+  disabled: "#C9CCD6",
+  disabledText: "#9EA2B1",
 
-  // Borders
-  border: "#E5E7EB",
-  borderHeavy: "#D1D5DB",
+  border: "#E4E5ED",
+  borderHeavy: "#C9CCD6",
 };

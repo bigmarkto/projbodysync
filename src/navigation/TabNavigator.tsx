@@ -1,21 +1,22 @@
 import React, { useState } from "react";
-import { View, Dimensions, StyleSheet } from "react-native";
-import { TabView, SceneMap, TabBar } from "react-native-tab-view";
+import { View, Dimensions, Text, TouchableOpacity } from "react-native";
+import { TabView, SceneMap } from "react-native-tab-view";
 import { useTheme } from "../context/ThemeProvider";
 import { HomeScreen, WorkoutsScreen, SettingsScreen } from "../screens";
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable } from "@gluestack-ui/themed";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const initialLayout = { width: Dimensions.get("window").width };
 
 const TabNavigator = () => {
   const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(0);
 
   const [routes] = useState([
     { key: "home", title: "Home", icon: "home" },
-    { key: "workouts", title: "Workouts", icon: "barbell" },
-    { key: "settings", title: "Settings", icon: "settings" },
+    { key: "workouts", title: "Exercícios", icon: "barbell" },
+    { key: "settings", title: "Configurações", icon: "settings" },
   ]);
 
   const renderScene = SceneMap({
@@ -37,30 +38,57 @@ const TabNavigator = () => {
     return focused ? "#F96D10" : isDark ? "#808080" : "#888888";
   };
 
-  const renderTabBar = (props: any) => (
-    <TabBar
-      {...props}
-      indicatorStyle={{ backgroundColor: "#F96D10" }}
-      style={{
-        backgroundColor: isDark ? "#252525" : "#FFFFFF",
-        borderTopColor: isDark ? "#3A3A3A" : "#E5E5E5",
-        borderTopWidth: 1,
-        elevation: 0,
-        shadowOpacity: 0,
-      }}
-      activeColor="#F96D10"
-      inactiveColor={isDark ? "#808080" : "#888888"}
-      renderIcon={({ route, focused }: { route: any; focused: boolean }) => (
-        <Ionicons
-          name={getIconName(route.key, focused)}
-          size={20}
-          color={getIconColor(focused)}
-        />
-      )}
-      renderLabel={() => null} // Hide text labels, only show icons
-      tabStyle={{ paddingVertical: 8 }}
-    />
-  );
+  const renderTabBar = (props: any) => {
+    const { navigationState } = props;
+
+    return (
+      <View
+        style={{
+          backgroundColor: isDark ? "#252525" : "#FFFFFF",
+          borderTopColor: isDark ? "#3A3A3A" : "#E5E5E5",
+          borderTopWidth: 1,
+          flexDirection: "row",
+          paddingBottom: insets.bottom,
+        }}
+      >
+        {navigationState.routes.map((route: any, i: number) => {
+          const focused = i === navigationState.index;
+          const color = getIconColor(focused);
+
+          return (
+            <TouchableOpacity
+              key={route.key}
+              onPress={() => setIndex(i)}
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                paddingVertical: 12,
+                borderBottomWidth: focused ? 3 : 0,
+                borderBottomColor: focused ? "#F96D10" : "transparent",
+              }}
+            >
+              <Ionicons
+                name={getIconName(route.key, focused)}
+                size={24}
+                color={color}
+              />
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontFamily: "Poppins_500Medium",
+                  color: color,
+                  marginTop: 4,
+                }}
+              >
+                {route.title}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
 
   return (
     <TabView

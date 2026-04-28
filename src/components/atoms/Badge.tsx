@@ -1,68 +1,133 @@
 import React from "react";
-import { Badge as NBBadge, IBadgeProps } from "native-base";
+import { Box, Text } from "@gluestack-ui/themed";
 
-interface CustomBadgeProps extends IBadgeProps {
-  variant?: "default" | "success" | "warning" | "error" | "info";
-  size?: "sm" | "md";
+interface BadgeProps {
   children?: React.ReactNode;
+  variant?: "solid" | "outline" | "subtle";
+  colorScheme?:
+    | "primary"
+    | "secondary"
+    | "success"
+    | "error"
+    | "warning"
+    | "info";
+  size?: "sm" | "md" | "lg";
+  [key: string]: any;
 }
 
 const Badge = ({
-  variant = "default",
-  size = "sm",
+  variant = "solid",
+  colorScheme = "primary",
+  size = "md",
   children,
   ...props
-}: CustomBadgeProps) => {
-  const variantStyles = {
-    default: {
-      backgroundColor: "neutral.200",
-      _text: { color: "text.primary" },
-    },
-    success: {
-      backgroundColor: "successLight",
-      _text: { color: "success" },
-    },
-    warning: {
-      backgroundColor: "warningLight",
-      _text: { color: "warning" },
-    },
-    error: {
-      backgroundColor: "errorLight",
-      _text: { color: "error" },
-    },
-    info: {
-      backgroundColor: "infoLight",
-      _text: { color: "info" },
-    },
+}: BadgeProps) => {
+  const getColorScheme = () => {
+    const colors: Record<string, any> = {
+      primary: {
+        bg: "$primary500",
+        text: "$white",
+        border: "$primary500",
+        bgLight: "$primary50",
+      },
+      secondary: {
+        bg: "$secondary500",
+        text: "$white",
+        border: "$secondary500",
+        bgLight: "$secondary50",
+      },
+      success: {
+        bg: "$success",
+        text: "$white",
+        border: "$success",
+        bgLight: "$successLight",
+      },
+      error: {
+        bg: "$error",
+        text: "$white",
+        border: "$error",
+        bgLight: "$errorLight",
+      },
+      warning: {
+        bg: "$warning",
+        text: "$white",
+        border: "$warning",
+        bgLight: "$warningLight",
+      },
+      info: {
+        bg: "$info",
+        text: "$white",
+        border: "$info",
+        bgLight: "$infoLight",
+      },
+    };
+    return colors[colorScheme] || colors.primary;
   };
 
-  const sizeStyles = {
-    sm: {
-      paddingX: 3,
-      paddingY: 15,
-      fontSize: "xs",
-    },
-    md: {
-      paddingX: 4,
-      paddingY: 15,
-      fontSize: "sm",
-      minWidth: 24,
-    },
+  const colorStyle = getColorScheme();
+
+  const getVariantStyle = () => {
+    switch (variant) {
+      case "outline":
+        return {
+          bg: colorStyle.bgLight || "$transparent",
+          borderWidth: 1,
+          borderColor: colorStyle.border,
+        };
+      case "subtle":
+        return {
+          bg: colorStyle.bgLight || "$transparent",
+        };
+      case "solid":
+      default:
+        return {
+          bg: colorStyle.bg,
+        };
+    }
+  };
+
+  const getSizeStyle = () => {
+    switch (size) {
+      case "sm":
+        return { px: "$2", py: "$0.5" };
+      case "md":
+        return { px: "$2.5", py: "$1" };
+      case "lg":
+        return { px: "$3", py: "$1.5" };
+      default:
+        return { px: "$2.5", py: "$1" };
+    }
+  };
+
+  const getTextSize = () => {
+    switch (size) {
+      case "sm":
+        return { fontSize: 10 };
+      case "md":
+        return { fontSize: 12 };
+      case "lg":
+        return { fontSize: 14 };
+      default:
+        return { fontSize: 12 };
+    }
   };
 
   return (
-    <NBBadge
-      borderRadius="full"
-      {...sizeStyles[size]}
-      {...variantStyles[variant]}
-      _text={{
-        fontWeight: "semibold",
-        ...variantStyles[variant]._text,
-      }}
+    <Box
+      {...getVariantStyle()}
+      {...getSizeStyle()}
+      borderRadius="$sm"
+      alignSelf="flex-start"
       {...props}
     >
-      {children}
-    </NBBadge>
+      <Text
+        {...getTextSize()}
+        color={variant === "solid" ? colorStyle.text : colorStyle.border}
+        fontWeight="$medium"
+      >
+        {children}
+      </Text>
+    </Box>
   );
 };
 

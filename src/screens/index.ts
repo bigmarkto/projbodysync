@@ -1,1 +1,3 @@
-export { default as ShowcaseScreen } from "./ShowcaseScreen";
+export { default as HomeScreen } from './HomeScreen';
+export { default as WorkoutsScreen } from './WorkoutsScreen';
+export { default as SettingsScreen } from './SettingsScreen';

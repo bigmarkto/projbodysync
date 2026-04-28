@@ -1,87 +1,125 @@
 import React from "react";
-import { Input as NBInput, IInputProps, FormControl, Text } from "native-base";
+import {
+  Input as GSInput,
+  InputField,
+  InputIcon,
+  InputSlot,
+  Text,
+  Box,
+} from "@gluestack-ui/themed";
+import { StyleSheet } from "react-native";
 
-interface CustomInputProps extends IInputProps {
-  label?: string;
-  error?: string;
-  helperText?: string;
-  variant?: "outline" | "filled";
+interface CustomInputProps {
+  value?: string;
+  onChangeText?: (text: string) => void;
+  placeholder?: string;
+  size?: "sm" | "md" | "lg";
+  variant?: "outline" | "filled" | "underlined";
+  isInvalid?: boolean;
+  isDisabled?: boolean;
+  isReadOnly?: boolean;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
+  errorMessage?: string;
+  showErrorMessage?: boolean;
+  [key: string]: any;
 }
 
 const Input = ({
-  label,
-  error,
-  helperText,
+  size = "md",
   variant = "outline",
+  isInvalid = false,
+  isDisabled = false,
+  isReadOnly = false,
+  leftIcon,
+  rightIcon,
+  errorMessage,
+  showErrorMessage = false,
+  value,
+  onChangeText,
+  placeholder,
   ...props
 }: CustomInputProps) => {
-  const isInvalid = !!error;
+  const getSizeStyle = () => {
+    switch (size) {
+      case "sm":
+        return { h: 36 };
+      case "md":
+        return { h: 44 };
+      case "lg":
+        return { h: 52 };
+      default:
+        return { h: 44 };
+    }
+  };
 
-  const variantStyle =
-    variant === "outline"
-      ? {
-          borderWidth: 1,
-          borderColor: isInvalid ? "error" : "border",
-          backgroundColor: "surface",
-          _focus: {
-            borderColor: isInvalid ? "error" : "primary.500",
-            backgroundColor: "surface",
-          },
-          _hover: {
-            borderColor: isInvalid ? "error" : "neutral.300",
-          },
-        }
-      : {
+  const getVariantStyle = () => {
+    switch (variant) {
+      case "filled":
+        return { bg: "$neutral100", borderWidth: 0 };
+      case "underlined":
+        return {
           borderWidth: 0,
-          backgroundColor: "neutral.100",
-          _focus: {
-            backgroundColor: "neutral.100",
-            borderWidth: 1,
-            borderColor: isInvalid ? "error" : "primary.500",
-          },
-          _hover: {
-            backgroundColor: "neutral.100",
-          },
+          borderBottomWidth: 1,
+          borderColor: isInvalid ? "$error" : "$border",
+          borderRadius: 0,
         };
+      case "outline":
+      default:
+        return {
+          borderWidth: 1,
+          borderColor: isInvalid ? "$error" : "$border",
+        };
+    }
+  };
 
   return (
-    <FormControl isInvalid={isInvalid}>
-      {label && (
-        <FormControl.Label
-          _text={{
-            fontSize: "sm",
-            fontWeight: "semibold",
-            color: "text.primary",
-          }}
-        >
-          {label}
-        </FormControl.Label>
-      )}
-      <NBInput
-        borderRadius="md"
-        paddingX={3}
-        paddingY={2.5}
-        fontSize="md"
-        fontWeight="normal"
-        color="text.primary"
-        placeholderTextColor="text.tertiary"
-        {...variantStyle}
+    <>
+      <GSInput
+        {...getSizeStyle()}
+        {...getVariantStyle()}
+        isInvalid={isInvalid}
+        isDisabled={isDisabled}
         {...props}
-      />
-      {helperText && (
-        <FormControl.HelperText
-          _text={{ fontSize: "xs", color: "text.tertiary" }}
-        >
-          {helperText}
-        </FormControl.HelperText>
+      >
+        {leftIcon && (
+          <InputSlot style={styles.inputSlot}>
+            <InputIcon as={leftIcon} />
+          </InputSlot>
+        )}
+        <InputField
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="$text.tertiary"
+          readOnly={isReadOnly}
+          style={styles.inputField}
+        />
+        {rightIcon && (
+          <InputSlot style={styles.inputSlot}>
+            <InputIcon as={rightIcon} />
+          </InputSlot>
+        )}
+      </GSInput>
+      {showErrorMessage && isInvalid && errorMessage && (
+        <Box style={{ marginTop: 4 }}>
+          <Text color="#ef4444" fontSize={12}>
+            {errorMessage}
+          </Text>
+        </Box>
       )}
-      {error && (
-        <FormControl.ErrorMessage _text={{ fontSize: "xs", color: "error" }}>
-          {error}
-        </FormControl.ErrorMessage>
-      )}
-    </FormControl>
+    </>
   );
 };
+
+const styles = StyleSheet.create({
+  inputSlot: {
+    paddingHorizontal: 12,
+  },
+  inputField: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+});
 
 export default Input;

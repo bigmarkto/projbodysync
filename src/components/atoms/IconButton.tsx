@@ -1,56 +1,95 @@
 import React from "react";
-import { IconButton as NBIconButton, IIconButtonProps } from "native-base";
+import { Pressable } from "@gluestack-ui/themed";
+import { StyleSheet } from "react-native";
 
-interface CustomIconButtonProps extends IIconButtonProps {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+interface IconButtonProps {
+  icon: React.ComponentType<any>;
+  variant?: "primary" | "secondary" | "outline" | "ghost" | "link";
   size?: "sm" | "md" | "lg";
+  isDisabled?: boolean;
+  onPress?: () => void;
+  [key: string]: any;
 }
 
 const IconButton = ({
-  variant = "ghost",
+  variant = "primary",
   size = "md",
+  icon: IconComponent,
+  isDisabled = false,
+  onPress,
   ...props
-}: CustomIconButtonProps) => {
-  const sizeMap = {
-    sm: 6,
-    md: 10,
-    lg: 12,
+}: IconButtonProps) => {
+  const getVariantStyle = () => {
+    switch (variant) {
+      case "primary":
+        return { bg: "$primary500", color: "$white" };
+      case "secondary":
+        return { bg: "$secondary500", color: "$white" };
+      case "outline":
+        return {
+          bg: "$transparent",
+          borderWidth: 1,
+          borderColor: "$primary500",
+          color: "$primary500",
+        };
+      case "ghost":
+        return { bg: "$transparent", color: "$primary500" };
+      case "link":
+        return { bg: "$transparent", color: "$primary500" };
+      default:
+        return { bg: "$primary500", color: "$white" };
+    }
   };
 
-  const variantStyles = {
-    primary: {
-      backgroundColor: "primary.500",
-      _pressed: { backgroundColor: "primary.700" },
-      _hover: { backgroundColor: "primary.600" },
-      _icon: { color: "white" },
-    },
-    secondary: {
-      backgroundColor: "neutral.100",
-      _pressed: { backgroundColor: "neutral.200" },
-      _hover: { backgroundColor: "neutral.200" },
-      _icon: { color: "text.primary" },
-    },
-    ghost: {
-      backgroundColor: "transparent",
-      _pressed: { backgroundColor: "primary.50" },
-      _hover: { backgroundColor: "primary.50" },
-      _icon: { color: "text.primary" },
-    },
-    danger: {
-      backgroundColor: "transparent",
-      _pressed: { backgroundColor: "errorLight" },
-      _hover: { backgroundColor: "errorLight" },
-      _icon: { color: "error" },
-    },
+  const getSizeStyle = () => {
+    switch (size) {
+      case "sm":
+        return { w: 32, h: 32 };
+      case "md":
+        return { w: 40, h: 40 };
+      case "lg":
+        return { w: 48, h: 48 };
+      default:
+        return { w: 40, h: 40 };
+    }
+  };
+
+  const getIconSize = () => {
+    switch (size) {
+      case "sm":
+        return 16;
+      case "md":
+        return 20;
+      case "lg":
+        return 24;
+      default:
+        return 20;
+    }
   };
 
   return (
-    <NBIconButton
-      borderRadius="md"
-      size={sizeMap[size]}
-      {...variantStyles[variant]}
+    <Pressable
+      {...getVariantStyle()}
+      {...getSizeStyle()}
+      borderRadius="$md"
+      alignItems="center"
+      justifyContent="center"
+      onPress={isDisabled ? undefined : onPress}
+      opacity={isDisabled ? 0.5 : 1}
       {...props}
-    />
+    >
+      {IconComponent && (
+        <IconComponent
+          width={getIconSize()}
+          height={getIconSize()}
+          color={
+            variant === "outline" || variant === "ghost" || variant === "link"
+              ? "$primary500"
+              : "$white"
+          }
+        />
+      )}
+    </Pressable>
   );
 };
 

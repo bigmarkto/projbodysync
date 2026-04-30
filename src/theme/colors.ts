@@ -6,9 +6,9 @@ export const lightColors = {
   surfaceVariant: "#F5F4F2",
   shadow: "#000000",
   text: {
-    primary: "#1A1A1A",
-    secondary: "#555555",
-    tertiary: "#888888",
+    primary: "#3b3b3b",
+    secondary: "#6c6b6b",
+    tertiary: "#8f8989",
     inverse: "#FFFFFF",
   },
   border: "#E5E5E5",

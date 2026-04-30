@@ -1,5 +1,7 @@
 import React from "react";
 import { Text as GSText, Box } from "@gluestack-ui/themed";
+import { useTheme } from "../../context/ThemeProvider";
+
 
 type GSTextProps = React.ComponentProps<typeof GSText>;
 
@@ -35,6 +37,10 @@ const Text = ({
   children,
   ...props
 }: CustomTextProps) => {
+
+  const { colors } = useTheme();
+  
+
   const variantStyles: Record<string, any> = {
     h1: {
       fontSize: "$2xl",
@@ -78,6 +84,7 @@ const Text = ({
     },
   };
 
+  console.log(variantStyles.h1.color)
   const marginProps: any = {};
   if (mt !== undefined) marginProps.marginTop = mt;
   if (mb !== undefined) marginProps.marginBottom = mb;

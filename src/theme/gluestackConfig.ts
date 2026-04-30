@@ -1,5 +1,6 @@
 // Gluestack UI Config - Using default config with custom colors
 import { config as defaultConfig } from "@gluestack-ui/config";
+import { lightColors } from "./colors";
 
 export const config = {
   ...defaultConfig,
@@ -13,7 +14,7 @@ export const config = {
       primary200: "#fcd34d",
       primary300: "#fbbf24",
       primary400: "#f59e0b",
-      primary500: "#F96D10",
+      primary500: lightColors.primary,
       primary600: "#ea580c",
       primary700: "#dc510b",
       primary800: "#c24610",
@@ -30,10 +31,35 @@ export const config = {
       secondary800: "#075985",
       secondary900: "#0c4a6e",
       // Status colors
-      success: "#22c55e",
-      error: "#ef4444",
-      warning: "#f59e0b",
-      info: "#3b82f6",
+      success: lightColors.success,
+      error: lightColors.error,
+      warning: lightColors.warning,
+      info: lightColors.info,
+      // Status light variants
+      successLight: lightColors.successLight,
+      errorLight: lightColors.errorLight,
+      warningLight: lightColors.warningLight,
+      infoLight: lightColors.infoLight,
+      // Primary light
+      primaryLight: lightColors.primaryLight,
+      // Text colors
+      textPrimary: lightColors.text.primary,
+      textSecondary: lightColors.text.secondary,
+      textTertiary: lightColors.text.tertiary,
+      textInverse: lightColors.text.inverse,
+      // Surface/background colors
+      background: lightColors.background,
+      surface: lightColors.surface,
+      surfaceVariant: lightColors.surfaceVariant,
+      // Border colors
+      border: lightColors.border,
+      borderHeavy: lightColors.borderHeavy,
+      // Disabled colors
+      disabled: lightColors.disabled,
+      disabledText: lightColors.disabledText,
+      // Constant colors (same in light and dark)
+      white: lightColors.text.inverse,
+      black: lightColors.shadow,
     },
   },
 };

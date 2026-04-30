@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 const initialLayout = { width: Dimensions.get("window").width };
 
 const TabNavigator = () => {
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(0);
 
@@ -35,7 +35,7 @@ const TabNavigator = () => {
   };
 
   const getIconColor = (focused: boolean) => {
-    return focused ? "#F96D10" : isDark ? "#808080" : "#888888";
+    return focused ? colors.primary : colors.text.tertiary;
   };
 
   const renderTabBar = (props: any) => {
@@ -44,8 +44,8 @@ const TabNavigator = () => {
     return (
       <View
         style={{
-          backgroundColor: isDark ? "#252525" : "#FFFFFF",
-          borderTopColor: isDark ? "#3A3A3A" : "#E5E5E5",
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
           flexDirection: "row",
           paddingBottom: insets.bottom,
@@ -65,7 +65,7 @@ const TabNavigator = () => {
                 alignItems: "center",
                 paddingVertical: 12,
                 borderBottomWidth: focused ? 3 : 0,
-                borderBottomColor: focused ? "#F96D10" : "transparent",
+                borderBottomColor: focused ? colors.primary : "transparent",
               }}
             >
               <Ionicons

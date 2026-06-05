@@ -131,30 +131,43 @@ export const authService = {
       throw new Error('Refresh token inválido ou expirado')
     }
 
-    // Busca o hash do token no banco
-    const tokenHash = await hashPassword(token)
+    // Busca todos os refresh tokens do usuário
     const result = await db.query(
-      `SELECT id, user_id, expires_at FROM refresh_tokens 
-       WHERE token_hash = $1 AND expires_at > NOW()`,
-      [tokenHash]
+      `SELECT id, user_id, token_hash, expires_at FROM refresh_tokens 
+       WHERE user_id = $1 AND expires_at > NOW()`,
+      [payload.userId]
     )
 
     if (result.rows.length === 0) {
       throw new Error('Refresh token não encontrado ou expirado')
     }
 
-    const tokenRecord = result.rows[0]
+    // Compara o token com cada hash salvo (bcrypt.compare funciona mesmo com salts diferentes)
+    let validTokenRecord = null
+    for (const record of result.rows) {
+      const isValid = await bcrypt.compare(token, record.token_hash)
+      if (isValid) {
+        validTokenRecord = record
+        break
+      }
+    }
+
+    if (!validTokenRecord) {
+      throw new Error('Refresh token inválido')
+    }
 
     // Gera novos tokens
     const userResult = await db.query(
       'SELECT id, email, name FROM users WHERE id = $1',
-      [tokenRecord.user_id]
+      [validTokenRecord.user_id]
     )
     const user: User = userResult.rows[0]
     const newTokens = generateTokens(user)
 
     // Invalida o token antigo (segurança: uso único)
-    await db.query('DELETE FROM refresh_tokens WHERE id = $1', [tokenRecord.id])
+    await db.query('DELETE FROM refresh_tokens WHERE id = $1', [
+      validTokenRecord.id,
+    ])
 
     // Salva o novo token
     const newTokenHash = await hashPassword(newTokens.refreshToken)
@@ -169,11 +182,25 @@ export const authService = {
     return newTokens
   },
 
-  // 4. LOGOUT
+  // 4. LOGOUT (CORRIGIDO)
   async logout(token: string): Promise<void> {
-    const tokenHash = await hashPassword(token)
-    await db.query('DELETE FROM refresh_tokens WHERE token_hash = $1', [
-      tokenHash,
-    ])
+    // Decodifica o token para pegar o userId
+    let payload: JwtPayload
+    try {
+      payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload
+    } catch (err) {
+      throw new Error('Refresh token inválido')
+    }
+
+    // Deleta TODOS os refresh tokens do usuário
+    const result = await db.query(
+      'DELETE FROM refresh_tokens WHERE user_id = $1',
+      [payload.userId]
+    )
+
+    // Se nenhum token foi deletado, o usuário não tinha tokens ativos
+    if (result.rowCount === 0) {
+      throw new Error('Nenhum token ativo encontrado')
+    }
   },
 }

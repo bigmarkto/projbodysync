@@ -78,14 +78,14 @@ async function fetchPage(offset: number): Promise<{
 }
 
 async function seed() {
-  console.log('🚀 Iniciando seed de exercícios do Wger...')
+  console.log('Iniciando seed de exercícios do Wger...')
   let offset = 0
   let total = 0
   let skipped = 0
   let withImages = 0
 
   while (true) {
-    console.log(`\n📄 Buscando página (offset ${offset})...`)
+    console.log(`\nBuscando página (offset ${offset})...`)
     const { results, hasNext } = await fetchPage(offset)
     console.log(`   Encontrados ${results.length} exercícios nesta página`)
 
@@ -97,7 +97,7 @@ async function seed() {
 
       // PULA exercícios sem nome (dados inválidos do Wger)
       if (!translation?.name || translation.name.trim() === '') {
-        console.warn(`   ⚠️  Pulando exercício ${exercise.id}: sem nome`)
+        console.warn(`Pulando exercício ${exercise.id}: sem nome`)
         skipped++
         continue
       }
@@ -109,21 +109,21 @@ async function seed() {
 
       if (mainImage) {
         console.log(
-          `   📥 Baixando imagem do exercício ${exercise.id}: "${translation.name}"...`
+          `Baixando imagem do exercício ${exercise.id}: "${translation.name}"...`
         )
         imageUrl = await downloadAndUploadImage(mainImage.image, exercise.id)
         if (imageUrl) {
-          console.log(`   ✅ Upload concluído`)
+          console.log(`Upload concluído`)
           withImages++
         } else {
-          console.log(`   ❌ Falha no upload da imagem`)
+          console.log(`Falha no upload da imagem`)
         }
       } else {
-        console.log(`   ℹ️  Exercício ${exercise.id} não tem imagem`)
+        console.log(`Exercício ${exercise.id} não tem imagem`)
       }
 
       // insere no banco — ON CONFLICT atualiza se já existir (idempotente)
-      console.log(`   💾 Salvando no banco: "${translation.name}"...`)
+      console.log(`Salvando no banco: "${translation.name}"...`)
       await db.query(
         `INSERT INTO exercises (wger_id, name, description, category, image_url)
          VALUES ($1, $2, $3, $4, $5)
@@ -140,26 +140,26 @@ async function seed() {
           imageUrl,
         ]
       )
-      console.log(`   ✅ Exercício salvo com sucesso`)
+      console.log(`Exercício salvo com sucesso`)
 
       total++
     }
 
     console.log(
-      `\n📊 Progresso: ${total} exercícios processados, ${skipped} pulados, ${withImages} com imagens`
+      `\nProgresso: ${total} exercícios processados, ${skipped} pulados, ${withImages} com imagens`
     )
 
     if (!hasNext) {
-      console.log(`\n🏁 Fim da paginação`)
+      console.log(`\nFim da paginação`)
       break
     }
 
     offset += 100
-    console.log(`\n⏳ Aguardando 1 segundo antes da próxima página...`)
+    console.log(`\nAguardando 1 segundo antes da próxima página...`)
     await new Promise(r => setTimeout(r, 1000))
   }
 
-  console.log(`\n🎉 Seed concluído!`)
+  console.log(`\nSeed concluído!`)
   console.log(`   Total inseridos: ${total}`)
   console.log(`   Total pulados: ${skipped}`)
   console.log(`   Com imagens: ${withImages}`)

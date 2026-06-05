@@ -79,7 +79,7 @@ async function translateExercises() {
       [namePt, descriptionPt, exercise.id]
     )
 
-    console.log(`  ✓ PT: "${namePt}"`)
+    console.log(`PT: "${namePt}"`)
 
     // Delay para respeitar rate limit
     if (translated < total) {

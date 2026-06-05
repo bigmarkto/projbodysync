@@ -42,11 +42,20 @@ function generateTokens(user: User): {
 
 export const authService = {
   // 1. REGISTRO
-  async register({
-    email,
-    password,
-    name,
-  }: RegisterRequest): Promise<AuthResponse> {
+  async register(data: RegisterRequest): Promise<AuthResponse> {
+    const {
+      email,
+      password,
+      name,
+      heightCm,
+      birthDate,
+      weightKg,
+      gender,
+      fitnessGoal,
+      experienceLevel = 'iniciante',
+      activityLevel = 'sedentario',
+    } = data
+
     // Verifica se email já existe
     const existingUser = await db.query(
       'SELECT id FROM users WHERE email = $1',
@@ -59,40 +68,89 @@ export const authService = {
     // Hash da senha
     const passwordHash = await hashPassword(password)
 
-    // Insere no banco
-    const result = await db.query(
-      `INSERT INTO users (email, password_hash, name) 
-       VALUES ($1, $2, $3) 
-       RETURNING id, email, name`,
-      [email, passwordHash, name]
-    )
+    // Inicia transação para garantir que usuário e perfil sejam criados juntos
+    const client = await db.connect()
 
-    const user: User = result.rows[0]
-    const tokens = generateTokens(user)
+    try {
+      await client.query('BEGIN')
 
-    // Salva o hash do refresh token no banco
-    const refreshTokenHash = await hashPassword(tokens.refreshToken)
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 dias a partir de agora
+      // 1. Cria o usuário na tabela users
+      const userResult = await client.query(
+        `INSERT INTO users (
+        email, password_hash, name, height_cm, birth_date,
+        weight_kg, gender, fitness_goal, experience_level, activity_level
+      ) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      RETURNING id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, experience_level, activity_level`,
+        [
+          email,
+          passwordHash,
+          name,
+          heightCm,
+          birthDate,
+          weightKg,
+          gender,
+          fitnessGoal,
+          experienceLevel,
+          activityLevel,
+        ]
+      )
 
-    await db.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
+      const user: User = userResult.rows[0]
+
+      // 2. Cria o perfil na tabela user_profiles
+      await client.query(
+        `INSERT INTO user_profiles (
+        user_id, weight_kg, height_cm, birth_date, gender,
+        fitness_goal, experience_level, activity_level
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          user.id,
+          weightKg,
+          heightCm,
+          birthDate,
+          gender,
+          fitnessGoal,
+          experienceLevel,
+          activityLevel,
+        ]
+      )
+
+      await client.query('COMMIT')
+
+      // 3. Gera os tokens
+      const tokens = generateTokens(user)
+
+      // 4. Salva o refresh token
+      const refreshTokenHash = await hashPassword(tokens.refreshToken)
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+      await client.query(
+        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
        VALUES ($1, $2, $3)`,
-      [user.id, refreshTokenHash, expiresAt]
-    )
+        [user.id, refreshTokenHash, expiresAt]
+      )
 
-    return { user, ...tokens }
+      return { user, ...tokens }
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
   },
 
   // 2. LOGIN
   async login({ email, password }: LoginRequest): Promise<AuthResponse> {
-    // Busca usuário
+    // Busca usuário COM TODOS OS CAMPOS
     const result = await db.query(
-      'SELECT id, email, name, password_hash FROM users WHERE email = $1',
+      `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, experience_level, activity_level, password_hash 
+     FROM users WHERE email = $1`,
       [email]
     )
 
     if (result.rows.length === 0) {
-      throw new Error('Credenciais inválidas') // Mensagem genérica por segurança
+      throw new Error('Credenciais inválidas')
     }
 
     const userDb = result.rows[0]
@@ -103,7 +161,20 @@ export const authService = {
       throw new Error('Credenciais inválidas')
     }
 
-    const user: User = { id: userDb.id, email: userDb.email, name: userDb.name }
+    // Constrói o usuário com todos os campos
+    const user: User = {
+      id: userDb.id,
+      email: userDb.email,
+      name: userDb.name,
+      heightCm: userDb.height_cm,
+      birthDate: userDb.birth_date,
+      weightKg: userDb.weight_kg,
+      gender: userDb.gender,
+      fitnessGoal: userDb.fitness_goal,
+      experienceLevel: userDb.experience_level,
+      activityLevel: userDb.activity_level,
+    }
+
     const tokens = generateTokens(user)
 
     // Salva novo refresh token
@@ -112,7 +183,7 @@ export const authService = {
 
     await db.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
-       VALUES ($1, $2, $3)`,
+     VALUES ($1, $2, $3)`,
       [user.id, refreshTokenHash, expiresAt]
     )
 
@@ -158,10 +229,24 @@ export const authService = {
 
     // Gera novos tokens
     const userResult = await db.query(
-      'SELECT id, email, name FROM users WHERE id = $1',
+      `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, experience_level, activity_level 
+   FROM users WHERE id = $1`,
       [validTokenRecord.user_id]
     )
-    const user: User = userResult.rows[0]
+
+    const userDb = userResult.rows[0]
+    const user: User = {
+      id: userDb.id,
+      email: userDb.email,
+      name: userDb.name,
+      heightCm: userDb.height_cm,
+      birthDate: userDb.birth_date,
+      weightKg: userDb.weight_kg,
+      gender: userDb.gender,
+      fitnessGoal: userDb.fitness_goal,
+      experienceLevel: userDb.experience_level,
+      activityLevel: userDb.activity_level,
+    }
     const newTokens = generateTokens(user)
 
     // Invalida o token antigo (segurança: uso único)

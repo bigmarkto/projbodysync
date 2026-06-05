@@ -5,15 +5,57 @@ export const authController = {
   // 1. Registro
   async register(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, password, name } = req.body
+      const {
+        email,
+        password,
+        name,
+        heightCm,
+        birthDate,
+        weightKg,
+        gender,
+        fitnessGoal,
+        experienceLevel,
+        activityLevel,
+      } = req.body
 
-      // Chama o service. Se der erro (ex: email duplicado), o service lança a exceção.
-      const result = await authService.register({ email, password, name })
+      // Validações de campos obrigatórios
+      if (!email || !password || !name) {
+        return res
+          .status(400)
+          .json({ error: 'Email, senha e nome são obrigatórios' })
+      }
 
-      // Retorna 201 (Created) com os dados
+      if (!heightCm || !birthDate || !weightKg || !gender || !fitnessGoal) {
+        return res.status(400).json({
+          error:
+            'Altura, data de nascimento, peso, gênero e objetivo são obrigatórios',
+        })
+      }
+
+      // Converte explicitamente os tipos
+      const data = {
+        email,
+        password,
+        name,
+        heightCm: Number(heightCm),
+        birthDate: String(birthDate),
+        weightKg: Number(weightKg),
+        gender,
+        fitnessGoal,
+        experienceLevel,
+        activityLevel,
+      }
+
+      // Valida conversões
+      if (isNaN(data.heightCm) || isNaN(data.weightKg)) {
+        return res
+          .status(400)
+          .json({ error: 'Altura e peso devem ser números válidos' })
+      }
+
+      const result = await authService.register(data)
       res.status(201).json(result)
     } catch (error) {
-      // Se der erro, passamos para o middleware global de erros (error.middleware.ts)
       next(error)
     }
   },

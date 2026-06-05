@@ -1,16 +1,20 @@
 import 'dotenv/config'
 import express from 'express'
 import { errorMiddleware } from './middleware/error.middleware'
-//import { exerciseRoutes } from './modules/exercise/exercise.routes'
+import { authRoutes } from './modules/auth/auth.routes'
+// import { exerciseRoutes } from './modules/exercise/exercise.routes' // <-- Descomente quando criar o módulo exercise
 
 const app = express()
 
 app.use(express.json())
 
-// rotas
-//app.use('/api/exercises', exerciseRoutes)
+// Rotas de Autenticação
+app.use('/api/auth', authRoutes)
 
-// handler global de erros — sempre o último middleware
+// Rotas de Exercícios (descomente quando criar o módulo)
+// app.use('/api/exercises', exerciseRoutes)
+
+// Handler global de erros — sempre o último middleware
 app.use(errorMiddleware)
 
 export default app

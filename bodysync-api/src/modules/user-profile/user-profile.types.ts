@@ -28,6 +28,11 @@ export interface UserProfile {
   workoutDays: number | null
   createdAt: string
   updatedAt: string
+  subscriptionType: string | null
+  desiredWeightKg: number | null
+  hydrationReminder: boolean | null
+  desiredModality: string | null
+  workoutSchedule: string | null
 }
 
 export interface CreateProfileRequest {

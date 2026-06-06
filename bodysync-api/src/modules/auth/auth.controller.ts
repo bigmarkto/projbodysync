@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express'
 import { authService } from './auth.service'
 
+// Regex simples para validação de email
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export const authController = {
-  // 1. Registro
   async register(req: Request, res: Response, next: NextFunction) {
     try {
       const {
@@ -14,86 +16,120 @@ export const authController = {
         weightKg,
         gender,
         fitnessGoal,
-        experienceLevel,
-        activityLevel,
+        subscriptionType,
+        desiredWeightKg,
+        hydrationReminder,
+        desiredModality,
+        workoutSchedule,
       } = req.body
 
-      // Validações de campos obrigatórios
-      if (!email || !password || !name) {
+      // 1. Validações de formato
+      if (!email || !emailRegex.test(email)) {
+        return res.status(400).json({ error: 'Formato de email inválido' })
+      }
+
+      if (!password || password.length < 8) {
         return res
           .status(400)
-          .json({ error: 'Email, senha e nome são obrigatórios' })
+          .json({ error: 'A senha deve ter no mínimo 8 caracteres' })
       }
 
-      if (!heightCm || !birthDate || !weightKg || !gender || !fitnessGoal) {
-        return res.status(400).json({
-          error:
-            'Altura, data de nascimento, peso, gênero e objetivo são obrigatórios',
-        })
+      if (
+        !name ||
+        !heightCm ||
+        !birthDate ||
+        !weightKg ||
+        !gender ||
+        !fitnessGoal
+      ) {
+        return res.status(400).json({ error: 'Campos obrigatórios faltando' })
       }
 
-      // Converte explicitamente os tipos
-      const data = {
+      // 2. Validação de campos novos
+      if (
+        !subscriptionType ||
+        !['free', 'basic', 'premium'].includes(subscriptionType)
+      ) {
+        return res.status(400).json({ error: 'Tipo de assinatura inválido' })
+      }
+
+      if (typeof desiredWeightKg !== 'number') {
+        return res
+          .status(400)
+          .json({ error: 'Peso desejado deve ser um número' })
+      }
+
+      if (typeof hydrationReminder !== 'boolean') {
+        return res
+          .status(400)
+          .json({ error: 'Lembrete de hidratação deve ser true ou false' })
+      }
+
+      // 3. Chama o service
+      const result = await authService.register({
         email,
         password,
         name,
         heightCm: Number(heightCm),
-        birthDate: String(birthDate),
+        birthDate,
         weightKg: Number(weightKg),
         gender,
         fitnessGoal,
-        experienceLevel,
-        activityLevel,
-      }
+        subscriptionType,
+        desiredWeightKg,
+        hydrationReminder,
+        desiredModality,
+        workoutSchedule,
+      })
 
-      // Valida conversões
-      if (isNaN(data.heightCm) || isNaN(data.weightKg)) {
-        return res
-          .status(400)
-          .json({ error: 'Altura e peso devem ser números válidos' })
-      }
-
-      const result = await authService.register(data)
       res.status(201).json(result)
-    } catch (error) {
+    } catch (error: any) {
+      // Tratamento específico para erros do service
+      if (error.message === 'Email já cadastrado') {
+        return res.status(409).json({ error: 'Email já cadastrado' })
+      }
       next(error)
     }
   },
 
-  // 2. Login
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const { email, password } = req.body
 
-      const result = await authService.login({ email, password })
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email e senha são obrigatórios' })
+      }
 
+      const result = await authService.login({ email, password })
       res.status(200).json(result)
-    } catch (error) {
+    } catch (error: any) {
+      if (error.message === 'Credenciais inválidas') {
+        return res.status(401).json({ error: 'Email ou senha inválidos' })
+      }
       next(error)
     }
   },
 
-  // 3. Refresh Token
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
       const { refreshToken } = req.body
-
+      if (!refreshToken) {
+        return res.status(400).json({ error: 'Refresh token é obrigatório' })
+      }
       const tokens = await authService.refresh(refreshToken)
-
       res.status(200).json(tokens)
     } catch (error) {
       next(error)
     }
   },
 
-  // 4. Logout
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
       const { refreshToken } = req.body
-
+      if (!refreshToken) {
+        return res.status(400).json({ error: 'Refresh token é obrigatório' })
+      }
       await authService.logout(refreshToken)
-
-      // 204 No Content: sucesso, mas sem corpo na resposta
       res.status(204).send()
     } catch (error) {
       next(error)

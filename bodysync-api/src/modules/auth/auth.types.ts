@@ -24,6 +24,11 @@ export interface RegisterRequest {
   fitnessGoal: FitnessGoal
   experienceLevel?: ExperienceLevel
   activityLevel?: ActivityLevel
+  subscriptionType: 'free' | 'basic' | 'premium'
+  desiredWeightKg: number
+  hydrationReminder: boolean
+  desiredModality: string
+  workoutSchedule: string
 }
 
 export interface LoginRequest {
@@ -42,6 +47,11 @@ export interface User {
   fitnessGoal: FitnessGoal
   experienceLevel: ExperienceLevel
   activityLevel: ActivityLevel
+  subscriptionType: string
+  desiredWeightKg: number | null
+  hydrationReminder: boolean
+  desiredModality: string | null
+  workoutSchedule: string | null
 }
 
 export interface AuthResponse {

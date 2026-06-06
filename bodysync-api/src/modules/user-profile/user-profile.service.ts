@@ -49,6 +49,11 @@ function mapDbRowToProfile(row: any): UserProfile {
     workoutDays: row.workout_days,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    subscriptionType: row.subscription_type,
+    desiredWeightKg: row.desired_weight_kg,
+    hydrationReminder: row.hydration_reminder,
+    desiredModality: row.desired_modality,
+    workoutSchedule: row.workout_schedule,
   }
 }
 

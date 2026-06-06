@@ -11,12 +11,11 @@ import {
 } from './auth.types'
 
 // Configurações de tempo de expiração
-const ACCESS_TOKEN_EXPIRES_IN = '15m' // Curta duração
-const REFRESH_TOKEN_EXPIRES_IN = '7d' // Longa duração
+const ACCESS_TOKEN_EXPIRES_IN = '15m'
+const REFRESH_TOKEN_EXPIRES_IN = '7d'
 
 // Função auxiliar para gerar hash da senha
 async function hashPassword(password: string): Promise<string> {
-  // 10 é o número de "rounds" (custo computacional). 10 é um padrão seguro.
   return bcrypt.hash(password, 10)
 }
 
@@ -31,8 +30,6 @@ function generateTokens(user: User): {
     expiresIn: ACCESS_TOKEN_EXPIRES_IN,
   })
 
-  // O refresh token pode ter um payload diferente ou o mesmo.
-  // Aqui usamos o mesmo para simplicidade, mas em produção poderia ter menos dados.
   const refreshToken = jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: REFRESH_TOKEN_EXPIRES_IN,
   })
@@ -54,6 +51,11 @@ export const authService = {
       fitnessGoal,
       experienceLevel = 'iniciante',
       activityLevel = 'sedentario',
+      subscriptionType,
+      desiredWeightKg,
+      hydrationReminder,
+      desiredModality,
+      workoutSchedule,
     } = data
 
     // Verifica se email já existe
@@ -68,20 +70,23 @@ export const authService = {
     // Hash da senha
     const passwordHash = await hashPassword(password)
 
-    // Inicia transação para garantir que usuário e perfil sejam criados juntos
+    // Inicia transação
     const client = await db.connect()
 
     try {
       await client.query('BEGIN')
 
-      // 1. Cria o usuário na tabela users
+      // 1. Cria o usuário na tabela users 
       const userResult = await client.query(
         `INSERT INTO users (
-        email, password_hash, name, height_cm, birth_date,
-        weight_kg, gender, fitness_goal, experience_level, activity_level
-      ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
-      RETURNING id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, experience_level, activity_level`,
+          email, password_hash, name, height_cm, birth_date,
+          weight_kg, gender, fitness_goal, experience_level, activity_level,
+          subscription_type, desired_weight_kg, hydration_reminder, desired_modality, workout_schedule
+        ) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
+        RETURNING id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
+                  experience_level, activity_level, subscription_type, desired_weight_kg, 
+                  hydration_reminder, desired_modality, workout_schedule`,
         [
           email,
           passwordHash,
@@ -93,6 +98,11 @@ export const authService = {
           fitnessGoal,
           experienceLevel,
           activityLevel,
+          subscriptionType,
+          desiredWeightKg,
+          hydrationReminder,
+          desiredModality,
+          workoutSchedule,
         ]
       )
 
@@ -101,9 +111,11 @@ export const authService = {
       // 2. Cria o perfil na tabela user_profiles
       await client.query(
         `INSERT INTO user_profiles (
-        user_id, weight_kg, height_cm, birth_date, gender,
-        fitness_goal, experience_level, activity_level
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    user_id, weight_kg, height_cm, birth_date, gender,
+    fitness_goal, experience_level, activity_level,
+    subscription_type, desired_weight_kg, hydration_reminder, 
+    desired_modality, workout_schedule
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           user.id,
           weightKg,
@@ -113,6 +125,11 @@ export const authService = {
           fitnessGoal,
           experienceLevel,
           activityLevel,
+          subscriptionType,
+          desiredWeightKg,
+          hydrationReminder,
+          desiredModality,
+          workoutSchedule,
         ]
       )
 
@@ -127,7 +144,7 @@ export const authService = {
 
       await client.query(
         `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
-       VALUES ($1, $2, $3)`,
+         VALUES ($1, $2, $3)`,
         [user.id, refreshTokenHash, expiresAt]
       )
 
@@ -142,10 +159,12 @@ export const authService = {
 
   // 2. LOGIN
   async login({ email, password }: LoginRequest): Promise<AuthResponse> {
-    // Busca usuário COM TODOS OS CAMPOS
+    // Busca usuário COM TODOS OS CAMPOS (INCLUINDO OS NOVOS)
     const result = await db.query(
-      `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, experience_level, activity_level, password_hash 
-     FROM users WHERE email = $1`,
+      `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
+              experience_level, activity_level, subscription_type, desired_weight_kg, 
+              hydration_reminder, desired_modality, workout_schedule, password_hash 
+       FROM users WHERE email = $1`,
       [email]
     )
 
@@ -173,6 +192,12 @@ export const authService = {
       fitnessGoal: userDb.fitness_goal,
       experienceLevel: userDb.experience_level,
       activityLevel: userDb.activity_level,
+      // Novos campos mapeados
+      subscriptionType: userDb.subscription_type,
+      desiredWeightKg: userDb.desired_weight_kg,
+      hydrationReminder: userDb.hydration_reminder,
+      desiredModality: userDb.desired_modality,
+      workoutSchedule: userDb.workout_schedule,
     }
 
     const tokens = generateTokens(user)
@@ -183,7 +208,7 @@ export const authService = {
 
     await db.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
-     VALUES ($1, $2, $3)`,
+       VALUES ($1, $2, $3)`,
       [user.id, refreshTokenHash, expiresAt]
     )
 
@@ -194,7 +219,6 @@ export const authService = {
   async refresh(
     token: string
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    // Verifica se o token é válido (assinatura e expiração)
     let payload: JwtPayload
     try {
       payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload
@@ -202,7 +226,6 @@ export const authService = {
       throw new Error('Refresh token inválido ou expirado')
     }
 
-    // Busca todos os refresh tokens do usuário
     const result = await db.query(
       `SELECT id, user_id, token_hash, expires_at FROM refresh_tokens 
        WHERE user_id = $1 AND expires_at > NOW()`,
@@ -213,7 +236,6 @@ export const authService = {
       throw new Error('Refresh token não encontrado ou expirado')
     }
 
-    // Compara o token com cada hash salvo (bcrypt.compare funciona mesmo com salts diferentes)
     let validTokenRecord = null
     for (const record of result.rows) {
       const isValid = await bcrypt.compare(token, record.token_hash)
@@ -227,10 +249,12 @@ export const authService = {
       throw new Error('Refresh token inválido')
     }
 
-    // Gera novos tokens
+    // Gera novos tokens (Busca dados completos do usuário)
     const userResult = await db.query(
-      `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, experience_level, activity_level 
-   FROM users WHERE id = $1`,
+      `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
+              experience_level, activity_level, subscription_type, desired_weight_kg, 
+              hydration_reminder, desired_modality, workout_schedule 
+       FROM users WHERE id = $1`,
       [validTokenRecord.user_id]
     )
 
@@ -246,10 +270,16 @@ export const authService = {
       fitnessGoal: userDb.fitness_goal,
       experienceLevel: userDb.experience_level,
       activityLevel: userDb.activity_level,
+      subscriptionType: userDb.subscription_type,
+      desiredWeightKg: userDb.desired_weight_kg,
+      hydrationReminder: userDb.hydration_reminder,
+      desiredModality: userDb.desired_modality,
+      workoutSchedule: userDb.workout_schedule,
     }
+
     const newTokens = generateTokens(user)
 
-    // Invalida o token antigo (segurança: uso único)
+    // Invalida o token antigo
     await db.query('DELETE FROM refresh_tokens WHERE id = $1', [
       validTokenRecord.id,
     ])
@@ -267,9 +297,8 @@ export const authService = {
     return newTokens
   },
 
-  // 4. LOGOUT (CORRIGIDO)
+  // 4. LOGOUT
   async logout(token: string): Promise<void> {
-    // Decodifica o token para pegar o userId
     let payload: JwtPayload
     try {
       payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload
@@ -277,13 +306,11 @@ export const authService = {
       throw new Error('Refresh token inválido')
     }
 
-    // Deleta TODOS os refresh tokens do usuário
     const result = await db.query(
       'DELETE FROM refresh_tokens WHERE user_id = $1',
       [payload.userId]
     )
 
-    // Se nenhum token foi deletado, o usuário não tinha tokens ativos
     if (result.rowCount === 0) {
       throw new Error('Nenhum token ativo encontrado')
     }

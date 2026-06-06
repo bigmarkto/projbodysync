@@ -1,19 +1,17 @@
 // src/modules/user-profile/user-profile.types.ts
 
-export type Gender = 'masculino' | 'feminino' | 'outro' | 'nao_binario'
-export type FitnessGoal =
-  | 'perda_peso'
-  | 'ganho_massa'
-  | 'forca'
-  | 'resistencia'
-  | 'saude_bem_estar'
-export type ExperienceLevel = 'iniciante' | 'intermediario' | 'avancado'
-export type ActivityLevel =
-  | 'sedentario'
-  | 'leve'
-  | 'moderado'
-  | 'ativo'
-  | 'muito_ativo'
+// Importar tipos de auth (NÃO redefinir!)
+import {
+  Gender,
+  FitnessGoal,
+  ExperienceLevel,
+  ActivityLevel,
+  ConsistencyScore,
+  WorkoutSchedule,
+} from '../auth/auth.types'
+
+// Re-exportar para facilitar imports em outros arquivos
+export type { Gender, FitnessGoal, ExperienceLevel, ActivityLevel }
 
 export interface UserProfile {
   id: string
@@ -28,11 +26,16 @@ export interface UserProfile {
   workoutDays: number | null
   createdAt: string
   updatedAt: string
+  // Novos campos de condição física
+  workoutFrequency: number | null
+  lastWorkoutDate: string | null
+  consistencyScore: ConsistencyScore | null
+  // Campos de preferência
   subscriptionType: string | null
   desiredWeightKg: number | null
   hydrationReminder: boolean | null
   desiredModality: string | null
-  workoutSchedule: string | null
+  workoutSchedule: WorkoutSchedule[] | null
 }
 
 export interface CreateProfileRequest {
@@ -44,6 +47,15 @@ export interface CreateProfileRequest {
   experienceLevel?: ExperienceLevel
   activityLevel?: ActivityLevel
   workoutDays?: number
+  // Novos campos
+  workoutFrequency?: number
+  lastWorkoutDate?: string
+  consistencyScore?: ConsistencyScore
+  subscriptionType?: 'free' | 'basic' | 'premium'
+  desiredWeightKg?: number
+  hydrationReminder?: boolean
+  desiredModality?: string
+  workoutSchedule?: WorkoutSchedule[]
 }
 
 export interface UpdateProfileRequest extends CreateProfileRequest {}

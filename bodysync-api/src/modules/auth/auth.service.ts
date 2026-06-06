@@ -51,6 +51,9 @@ export const authService = {
       fitnessGoal,
       experienceLevel = 'iniciante',
       activityLevel = 'sedentario',
+      workoutFrequency,
+      lastWorkoutDate,
+      consistencyScore,
       subscriptionType,
       desiredWeightKg,
       hydrationReminder,
@@ -76,17 +79,20 @@ export const authService = {
     try {
       await client.query('BEGIN')
 
-      // 1. Cria o usuário na tabela users 
+      // 1. Cria o usuário na tabela users
       const userResult = await client.query(
         `INSERT INTO users (
-          email, password_hash, name, height_cm, birth_date,
-          weight_kg, gender, fitness_goal, experience_level, activity_level,
-          subscription_type, desired_weight_kg, hydration_reminder, desired_modality, workout_schedule
-        ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
-        RETURNING id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
-                  experience_level, activity_level, subscription_type, desired_weight_kg, 
-                  hydration_reminder, desired_modality, workout_schedule`,
+    email, password_hash, name, height_cm, birth_date,
+    weight_kg, gender, fitness_goal, experience_level, activity_level,
+    workout_frequency, last_workout_date, consistency_score,
+    subscription_type, desired_weight_kg, hydration_reminder, 
+    desired_modality, workout_schedule
+  ) 
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
+  RETURNING id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
+            experience_level, activity_level, workout_frequency, last_workout_date, 
+            consistency_score, subscription_type, desired_weight_kg, hydration_reminder, 
+            desired_modality, workout_schedule`,
         [
           email,
           passwordHash,
@@ -96,26 +102,54 @@ export const authService = {
           weightKg,
           gender,
           fitnessGoal,
-          experienceLevel,
+          experienceLevel || null,
           activityLevel,
+          workoutFrequency,
+          lastWorkoutDate || null,
+          consistencyScore || null,
           subscriptionType,
           desiredWeightKg,
           hydrationReminder,
-          desiredModality,
-          workoutSchedule,
+          desiredModality || null,
+          workoutSchedule ? JSON.stringify(workoutSchedule) : null,
         ]
       )
 
-      const user: User = userResult.rows[0]
+      // ✅ DEPOIS:
+      const userDb = userResult.rows[0]
 
+      // Mapear snake_case para camelCase e converter DECIMAL para number
+      const user: User = {
+        id: userDb.id,
+        email: userDb.email,
+        name: userDb.name,
+        heightCm: Number(userDb.height_cm),
+        birthDate: userDb.birth_date,
+        weightKg: Number(userDb.weight_kg),
+        gender: userDb.gender,
+        fitnessGoal: userDb.fitness_goal,
+        experienceLevel: userDb.experience_level,
+        activityLevel: userDb.activity_level,
+        workoutFrequency: userDb.workout_frequency,
+        lastWorkoutDate: userDb.last_workout_date,
+        consistencyScore: userDb.consistency_score,
+        subscriptionType: userDb.subscription_type,
+        desiredWeightKg: userDb.desired_weight_kg
+          ? Number(userDb.desired_weight_kg)
+          : null,
+        hydrationReminder: userDb.hydration_reminder,
+        desiredModality: userDb.desired_modality,
+        workoutSchedule: userDb.workout_schedule, // JSONB já vem como objeto
+      }
       // 2. Cria o perfil na tabela user_profiles
       await client.query(
         `INSERT INTO user_profiles (
     user_id, weight_kg, height_cm, birth_date, gender,
     fitness_goal, experience_level, activity_level,
+    workout_frequency, last_workout_date, consistency_score,
     subscription_type, desired_weight_kg, hydration_reminder, 
     desired_modality, workout_schedule
-  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
         [
           user.id,
           weightKg,
@@ -125,11 +159,14 @@ export const authService = {
           fitnessGoal,
           experienceLevel,
           activityLevel,
+          workoutFrequency,
+          lastWorkoutDate || null,
+          consistencyScore || null,
           subscriptionType,
           desiredWeightKg,
           hydrationReminder,
           desiredModality,
-          workoutSchedule,
+          workoutSchedule ? JSON.stringify(workoutSchedule) : null,
         ]
       )
 
@@ -159,12 +196,13 @@ export const authService = {
 
   // 2. LOGIN
   async login({ email, password }: LoginRequest): Promise<AuthResponse> {
-    // Busca usuário COM TODOS OS CAMPOS (INCLUINDO OS NOVOS)
+    // Busca usuário COM TODOS OS CAMPOS (incluindo os novos de condição física)
     const result = await db.query(
       `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
-              experience_level, activity_level, subscription_type, desired_weight_kg, 
-              hydration_reminder, desired_modality, workout_schedule, password_hash 
-       FROM users WHERE email = $1`,
+            experience_level, activity_level, workout_frequency, last_workout_date, 
+            consistency_score, subscription_type, desired_weight_kg, 
+            hydration_reminder, desired_modality, workout_schedule, password_hash 
+     FROM users WHERE email = $1`,
       [email]
     )
 
@@ -180,24 +218,28 @@ export const authService = {
       throw new Error('Credenciais inválidas')
     }
 
-    // Constrói o usuário com todos os campos
+    // Constrói o usuário com todos os campos (convertendo DECIMAL para number)
     const user: User = {
       id: userDb.id,
       email: userDb.email,
       name: userDb.name,
-      heightCm: userDb.height_cm,
+      heightCm: Number(userDb.height_cm),
       birthDate: userDb.birth_date,
-      weightKg: userDb.weight_kg,
+      weightKg: Number(userDb.weight_kg),
       gender: userDb.gender,
       fitnessGoal: userDb.fitness_goal,
       experienceLevel: userDb.experience_level,
       activityLevel: userDb.activity_level,
-      // Novos campos mapeados
+      workoutFrequency: userDb.workout_frequency,
+      lastWorkoutDate: userDb.last_workout_date,
+      consistencyScore: userDb.consistency_score,
       subscriptionType: userDb.subscription_type,
-      desiredWeightKg: userDb.desired_weight_kg,
+      desiredWeightKg: userDb.desired_weight_kg
+        ? Number(userDb.desired_weight_kg)
+        : null,
       hydrationReminder: userDb.hydration_reminder,
       desiredModality: userDb.desired_modality,
-      workoutSchedule: userDb.workout_schedule,
+      workoutSchedule: userDb.workout_schedule, // JSONB já vem como objeto
     }
 
     const tokens = generateTokens(user)
@@ -208,7 +250,7 @@ export const authService = {
 
     await db.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
-       VALUES ($1, $2, $3)`,
+     VALUES ($1, $2, $3)`,
       [user.id, refreshTokenHash, expiresAt]
     )
 
@@ -250,28 +292,35 @@ export const authService = {
     }
 
     // Gera novos tokens (Busca dados completos do usuário)
+    // No refresh, atualize o SELECT:
     const userResult = await db.query(
       `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
-              experience_level, activity_level, subscription_type, desired_weight_kg, 
-              hydration_reminder, desired_modality, workout_schedule 
-       FROM users WHERE id = $1`,
+          experience_level, activity_level, workout_frequency, last_workout_date, 
+          consistency_score, subscription_type, desired_weight_kg, 
+          hydration_reminder, desired_modality, workout_schedule 
+   FROM users WHERE id = $1`,
       [validTokenRecord.user_id]
     )
-
     const userDb = userResult.rows[0]
+    // E a construção do user:
     const user: User = {
       id: userDb.id,
       email: userDb.email,
       name: userDb.name,
-      heightCm: userDb.height_cm,
+      heightCm: Number(userDb.height_cm),
       birthDate: userDb.birth_date,
-      weightKg: userDb.weight_kg,
+      weightKg: Number(userDb.weight_kg),
       gender: userDb.gender,
       fitnessGoal: userDb.fitness_goal,
       experienceLevel: userDb.experience_level,
       activityLevel: userDb.activity_level,
+      workoutFrequency: userDb.workout_frequency,
+      lastWorkoutDate: userDb.last_workout_date,
+      consistencyScore: userDb.consistency_score,
       subscriptionType: userDb.subscription_type,
-      desiredWeightKg: userDb.desired_weight_kg,
+      desiredWeightKg: userDb.desired_weight_kg
+        ? Number(userDb.desired_weight_kg)
+        : null,
       hydrationReminder: userDb.hydration_reminder,
       desiredModality: userDb.desired_modality,
       workoutSchedule: userDb.workout_schedule,

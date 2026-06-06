@@ -1,3 +1,4 @@
+// src/modules/auth/auth.controller.ts
 import { Request, Response, NextFunction } from 'express'
 import { authService } from './auth.service'
 
@@ -16,6 +17,11 @@ export const authController = {
         weightKg,
         gender,
         fitnessGoal,
+        experienceLevel,
+        activityLevel,
+        workoutFrequency,
+        lastWorkoutDate,
+        consistencyScore,
         subscriptionType,
         desiredWeightKg,
         hydrationReminder,
@@ -23,7 +29,7 @@ export const authController = {
         workoutSchedule,
       } = req.body
 
-      // 1. Validações de formato
+      // 1. Validações de formato básico
       if (!email || !emailRegex.test(email)) {
         return res.status(400).json({ error: 'Formato de email inválido' })
       }
@@ -45,7 +51,34 @@ export const authController = {
         return res.status(400).json({ error: 'Campos obrigatórios faltando' })
       }
 
-      // 2. Validação de campos novos
+      // 2. Validação de activityLevel (OBRIGATÓRIO para recomendação)
+      if (
+        !activityLevel ||
+        !['sedentario', 'leve', 'moderado', 'ativo', 'muito_ativo'].includes(
+          activityLevel
+        )
+      ) {
+        return res.status(400).json({
+          error:
+            'Nível de atividade inválido. Use: sedentario | leve | moderado | ativo | muito_ativo',
+        })
+      }
+
+      // 3. Validação de workoutFrequency (0-7 dias)
+      if (
+        workoutFrequency === undefined ||
+        typeof workoutFrequency !== 'number' ||
+        workoutFrequency < 0 ||
+        workoutFrequency > 7
+      ) {
+        return res
+          .status(400)
+          .json({
+            error: 'Frequência de treino deve ser um número entre 0 e 7',
+          })
+      }
+
+      // 4. Validação de campos de preferência
       if (
         !subscriptionType ||
         !['free', 'basic', 'premium'].includes(subscriptionType)
@@ -65,7 +98,49 @@ export const authController = {
           .json({ error: 'Lembrete de hidratação deve ser true ou false' })
       }
 
-      // 3. Chama o service
+      // 5. Validação do workoutSchedule (array de 7 booleanos + horário fixo)
+      if (workoutSchedule !== undefined) {
+        if (typeof workoutSchedule !== 'object' || workoutSchedule === null) {
+          return res
+            .status(400)
+            .json({ error: 'workoutSchedule deve ser um objeto' })
+        }
+
+        const { days, time } = workoutSchedule
+
+        if (
+          !Array.isArray(days) ||
+          days.length !== 7 ||
+          !days.every(d => typeof d === 'boolean')
+        ) {
+          return res.status(400).json({
+            error:
+              'days deve ser um array de exatamente 7 booleanos [domingo, segunda, terca, quarta, quinta, sexta, sabado]',
+          })
+        }
+
+        if (
+          time !== null &&
+          (typeof time !== 'string' || !/^\d{2}:\d{2}$/.test(time))
+        ) {
+          return res.status(400).json({
+            error:
+              'time deve ser uma string no formato HH:MM (ex: "18:00") ou null',
+          })
+        }
+      }
+
+      // 6. Validação opcional de consistencyScore
+      if (
+        consistencyScore &&
+        !['low', 'medium', 'high'].includes(consistencyScore)
+      ) {
+        return res.status(400).json({
+          error: 'consistencyScore deve ser: low | medium | high',
+        })
+      }
+
+      // 7. Chama o service com TODOS os campos
       const result = await authService.register({
         email,
         password,
@@ -75,6 +150,11 @@ export const authController = {
         weightKg: Number(weightKg),
         gender,
         fitnessGoal,
+        experienceLevel, // informativo apenas
+        activityLevel, // essencial para recomendação
+        workoutFrequency: Number(workoutFrequency),
+        lastWorkoutDate,
+        consistencyScore,
         subscriptionType,
         desiredWeightKg,
         hydrationReminder,
@@ -84,7 +164,6 @@ export const authController = {
 
       res.status(201).json(result)
     } catch (error: any) {
-      // Tratamento específico para erros do service
       if (error.message === 'Email já cadastrado') {
         return res.status(409).json({ error: 'Email já cadastrado' })
       }

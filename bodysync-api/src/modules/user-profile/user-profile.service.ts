@@ -39,7 +39,8 @@ function mapDbRowToProfile(row: any): UserProfile {
   return {
     id: row.id,
     userId: row.user_id,
-    weightKg: row.weight_kg,
+    // Converter DECIMAL para number
+    weightKg: row.weight_kg ? Number(row.weight_kg) : null,
     heightCm: row.height_cm,
     birthDate: row.birth_date,
     gender: row.gender,
@@ -47,13 +48,19 @@ function mapDbRowToProfile(row: any): UserProfile {
     experienceLevel: row.experience_level,
     activityLevel: row.activity_level,
     workoutDays: row.workout_days,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    // Novos campos de condição física
+    workoutFrequency: row.workout_frequency,
+    lastWorkoutDate: row.last_workout_date,
+    consistencyScore: row.consistency_score,
+    // Campos de preferência
     subscriptionType: row.subscription_type,
-    desiredWeightKg: row.desired_weight_kg,
+    desiredWeightKg: row.desired_weight_kg ? Number(row.desired_weight_kg) : null,
     hydrationReminder: row.hydration_reminder,
     desiredModality: row.desired_modality,
-    workoutSchedule: row.workout_schedule,
+    workoutSchedule: row.workout_schedule, // JSONB já vem como objeto
+    // Timestamps
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
 }
 
@@ -144,13 +151,27 @@ export const userProfileService = {
       experienceLevel: 'experience_level',
       activityLevel: 'activity_level',
       workoutDays: 'workout_days',
+      // Novos campos
+      workoutFrequency: 'workout_frequency',
+      lastWorkoutDate: 'last_workout_date',
+      consistencyScore: 'consistency_score',
+      subscriptionType: 'subscription_type',
+      desiredWeightKg: 'desired_weight_kg',
+      hydrationReminder: 'hydration_reminder',
+      desiredModality: 'desired_modality',
+      workoutSchedule: 'workout_schedule',
     }
 
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined && value !== null) {
         const dbColumn = fieldMap[key] || key
         updates.push(`${dbColumn} = $${paramIndex}`)
-        values.push(value)
+        // Converter array para string JSON se for workoutSchedule
+        if (key === 'workoutSchedule' && Array.isArray(value)) {
+          values.push(JSON.stringify(value))
+        } else {
+          values.push(value)
+        }
         paramIndex++
       }
     }

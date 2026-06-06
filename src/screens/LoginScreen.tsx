@@ -125,9 +125,15 @@ const LoginScreen = () => {
     setErrorMsg("");
 
     if (!email.trim()) {
-      setErrorMsg("Informe seu e-mail.");
-      return;
-    }
+          setErrorMsg("Informe seu e-mail.");
+          return;
+        }
+        // validação simples de formato de e‑mail
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(email.trim())) {
+          setErrorMsg("Formato de e‑mail inválido.");
+          return;
+        }
     if (!password.trim()) {
       setErrorMsg("Informe sua senha.");
       return;
@@ -135,6 +141,7 @@ const LoginScreen = () => {
 
     setIsLoading(true);
     try {
+      console.log("Teste")
       await login(email.trim(), password);
     } catch (err: any) {
       const raw = err?.message || String(err);

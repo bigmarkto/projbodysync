@@ -1,6 +1,6 @@
 import { useAuth } from "../context/AuthContext";
 
-const API_URL = "http://192.168.1.102:3000/api";
+const API_URL = "http://192.168.1.103:3000/api";
 
 export const useApi = () => {
   const { accessToken, logout, refreshSession } = useAuth();

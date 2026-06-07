@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { lightColors } from "../theme/colors";
 import { useAuth } from "../context/AuthContext";
+import { useNavigation } from "@react-navigation/native";
 
 const GOOGLE_LOGO =
   "https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg";
@@ -84,6 +85,7 @@ const friendlyError = (raw: string): string => {
 
 const LoginScreen = () => {
   const { login } = useAuth();
+  const navigation = useNavigation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -318,7 +320,7 @@ const LoginScreen = () => {
 
           <View style={styles.registerRow}>
             <Text style={styles.registerText}>Não tem conta? </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
               <Text style={styles.registerLink}>Cadastre-se</Text>
             </TouchableOpacity>
           </View>

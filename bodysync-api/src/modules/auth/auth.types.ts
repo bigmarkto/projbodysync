@@ -22,7 +22,7 @@ export type ActivityLevel =
   | 'ativo'
   | 'muito_ativo'
 
-export type ConsistencyScore = 'low' | 'medium' | 'high'
+export type UserRole = 'comum' | 'admin' | 'professor'
 
 // Nova estrutura de horário: array de 7 booleanos + horário único
 // Índice do array: [0=domingo, 1=segunda, 2=terca, 3=quarta, 4=quinta, 5=sexta, 6=sabado]
@@ -40,15 +40,15 @@ export interface RegisterRequest {
   weightKg: number
   gender: Gender
   fitnessGoal: FitnessGoal
+  role: UserRole // 'comum' | 'admin' | 'professor'
 
   // Campo informativo (não restritivo)
   experienceLevel?: ExperienceLevel
 
   // Campos que DEFINEM a recomendação (condição atual)
   activityLevel: ActivityLevel // Obrigatório: base da recomendação
-  workoutFrequency: number // dias por semana (0-7)
+  workoutFrequency: number | null // dias por semana (0-7)
   lastWorkoutDate?: string // YYYY-MM-DD - quando treinou pela última vez
-  consistencyScore?: ConsistencyScore // Opcional: pode ser calculado depois
 
   // Novos campos de preferências
   subscriptionType: 'free' | 'basic' | 'premium'
@@ -74,6 +74,7 @@ export interface User {
   weightKg: number
   gender: Gender
   fitnessGoal: FitnessGoal
+  role: UserRole
 
   // Campo informativo
   experienceLevel: ExperienceLevel | null
@@ -82,7 +83,7 @@ export interface User {
   activityLevel: ActivityLevel
   workoutFrequency: number | null
   lastWorkoutDate: string | null
-  consistencyScore: ConsistencyScore | null
+  
 
   // Preferências
   subscriptionType: string
@@ -101,4 +102,5 @@ export interface AuthResponse {
 export interface JwtPayload {
   userId: string
   email: string
+  role: UserRole
 }

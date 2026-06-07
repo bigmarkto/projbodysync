@@ -26,9 +26,11 @@ Authorization: Bearer <ACCESS_TOKEN>
   "weightKg": 78.5,
   "gender": "masculino",
   "fitnessGoal": "ganho_massa_muscular",
+  "role": "comum",
+  "experienceLevel": "intermediario",
   "activityLevel": "moderado",
   "workoutFrequency": 3,
-  "subscriptionType": "premium",
+  "subscriptionType": "basic",
   "desiredWeightKg": 75,
   "hydrationReminder": true,
   "desiredModality": "musculacao",
@@ -36,9 +38,7 @@ Authorization: Bearer <ACCESS_TOKEN>
     "days": [false, true, false, true, false, true, false],
     "time": "18:00"
   },
-  "experienceLevel": "intermediario",
-  "lastWorkoutDate": "2026-05-01",
-  "consistencyScore": "medium"
+  "lastWorkoutDate": "2026-05-01"
 }
 ```
 
@@ -53,9 +53,8 @@ Authorization: Bearer <ACCESS_TOKEN>
 | `weightKg` | number | Peso atual em kg (ex: `78.5`) |
 | `gender` | string | `masculino` \| `feminino` \| `outro` \| `nao_binario` |
 | `fitnessGoal` | string | `emagrecimento` \| `ganho_peso` \| `ganho_massa_muscular` \| `condicionamento_fisico` \| `saude_bem_estar` |
-| `activityLevel` | string | `sedentario` \| `leve` \| `moderado` \| `ativo` \| `muito_ativo` |
-| `workoutFrequency` | number | Dias de treino por semana (0-7) |
-| `subscriptionType` | string | `free` \| `basic` \| `premium` |
+| `role` | string | `comum` \| `admin` \| `professor` |
+| `subscriptionType` | string | `free` \| `basic` \| `premium` (comum só pode `free` ou `basic`) |
 | `desiredWeightKg` | number | Peso objetivo em kg (ex: `75`) |
 | `hydrationReminder` | boolean | `true` para ativar lembrete de água |
 | `desiredModality` | string | Ex: `musculacao`, `crossfit`, `yoga`, `corrida` |
@@ -63,9 +62,10 @@ Authorization: Bearer <ACCESS_TOKEN>
 **Campos opcionais:**
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| `experienceLevel` | string | `iniciante` \| `intermediario` \| `avancado` (padrão: `iniciante`) — **apenas informativo, não restringe exercícios** |
+| `experienceLevel` | string | `iniciante` \| `intermediario` \| `avancado` — **apenas informativo, não restringe exercícios** |
+| `activityLevel` | string | `sedentario` \| `leve` \| `moderado` \| `ativo` \| `muito_ativo` |
+| `workoutFrequency` | number | Dias de treino por semana (0-7) |
 | `lastWorkoutDate` | string | Data do último treino (`YYYY-MM-DD`) |
-| `consistencyScore` | string | `low` \| `medium` \| `high` |
 | `workoutSchedule` | object | Estrutura `{ days, time }` (ver abaixo) |
 
 **Estrutura de `workoutSchedule`:**
@@ -92,12 +92,12 @@ Authorization: Bearer <ACCESS_TOKEN>
     "weightKg": 78.5,
     "gender": "masculino",
     "fitnessGoal": "ganho_massa_muscular",
+    "role": "comum",
     "experienceLevel": "intermediario",
     "activityLevel": "moderado",
     "workoutFrequency": 3,
     "lastWorkoutDate": "2026-05-01",
-    "consistencyScore": "medium",
-    "subscriptionType": "premium",
+    "subscriptionType": "basic",
     "desiredWeightKg": 75,
     "hydrationReminder": true,
     "desiredModality": "musculacao",
@@ -117,9 +117,12 @@ Authorization: Bearer <ACCESS_TOKEN>
 | `400` | `"Formato de email inválido"` | Email sem `@` ou formato incorreto |
 | `400` | `"A senha deve ter no mínimo 8 caracteres"` | Senha com menos de 8 caracteres |
 | `400` | `"Campos obrigatórios faltando"` | Algum campo obrigatório não enviado |
-| `400` | `"Nível de atividade inválido..."` | `activityLevel` fora dos valores permitidos |
-| `400` | `"Frequência de treino deve ser um número entre 0 e 7"` | `workoutFrequency` inválido |
+| `400` | `"Role inválido. Use: comum \| admin \| professor"` | `role` fora dos valores permitidos |
+| `400` | `"Usuários comuns só podem ter assinatura free ou basic"` | `role: comum` com `subscriptionType: premium` |
 | `400` | `"Tipo de assinatura inválido"` | `subscriptionType` fora dos valores permitidos |
+| `400` | `"experienceLevel deve ser: iniciante \| intermediario \| avancado"` | Valor inválido |
+| `400` | `"activityLevel deve ser: sedentario \| leve \| moderado \| ativo \| muito_ativo"` | Valor inválido |
+| `400` | `"workoutFrequency deve ser um número entre 0 e 7"` | Valor fora do intervalo |
 | `400` | `"Peso desejado deve ser um número"` | `desiredWeightKg` não é número |
 | `400` | `"Lembrete de hidratação deve ser true ou false"` | `hydrationReminder` não é boolean |
 | `400` | `"workoutSchedule deve ser um objeto"` | Estrutura inválida |
@@ -153,12 +156,12 @@ Authorization: Bearer <ACCESS_TOKEN>
     "weightKg": 78.5,
     "gender": "masculino",
     "fitnessGoal": "ganho_massa_muscular",
+    "role": "comum",
     "experienceLevel": "intermediario",
     "activityLevel": "moderado",
     "workoutFrequency": 3,
     "lastWorkoutDate": "2026-05-01",
-    "consistencyScore": "medium",
-    "subscriptionType": "premium",
+    "subscriptionType": "basic",
     "desiredWeightKg": 75,
     "hydrationReminder": true,
     "desiredModality": "musculacao",
@@ -253,12 +256,12 @@ Authorization: Bearer <ACCESS_TOKEN>
     "birthDate": "1995-01-01T02:00:00.000Z",
     "gender": "masculino",
     "fitnessGoal": "condicionamento_fisico",
+    "role": "comum",
     "experienceLevel": "iniciante",
     "activityLevel": "moderado",
     "workoutDays": null,
     "workoutFrequency": 3,
     "lastWorkoutDate": null,
-    "consistencyScore": null,
     "subscriptionType": "free",
     "desiredWeightKg": 68,
     "hydrationReminder": true,
@@ -309,8 +312,7 @@ Authorization: Bearer <ACCESS_TOKEN>
   "workoutDays": 4,
   "workoutFrequency": 3,
   "lastWorkoutDate": "2026-05-01",
-  "consistencyScore": "medium",
-  "subscriptionType": "premium",
+  "subscriptionType": "basic",
   "desiredWeightKg": 75,
   "hydrationReminder": true,
   "desiredModality": "musculacao",
@@ -408,14 +410,6 @@ O sistema **NÃO restringe** exercícios com base em nível de experiência (`ex
 | `workoutFrequency` | Frequência alta → progressão mais rápida |
 | `lastWorkoutDate` | Inatividade longa → recomendação de retomada |
 | `fitnessGoal` | Direciona o tipo de exercício (força, cardio, etc.) |
-
-### Exemplos de cenários:
-
-| Cenário | Resultado |
-|---------|-----------|
-| Usuário treinou regularmente nos últimos meses | Recebe recomendações com maior intensidade |
-| Usuário com experiência mas sedentário há meses | Recebe planos de retomada gradual |
-| Usuário nunca treinou mas pratica atividades regularmente | Pode ter progressões mais rápidas |
 
 ---
 

@@ -10,21 +10,22 @@ import {
   JwtPayload,
 } from './auth.types'
 
-// Configurações de tempo de expiração
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
 
-// Função auxiliar para gerar hash da senha
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10)
 }
 
-// Função auxiliar para gerar os dois tokens
 function generateTokens(user: User): {
   accessToken: string
   refreshToken: string
 } {
-  const payload: JwtPayload = { userId: user.id, email: user.email }
+  const payload: JwtPayload = {
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+  }
 
   const accessToken = jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: ACCESS_TOKEN_EXPIRES_IN,
@@ -49,11 +50,11 @@ export const authService = {
       weightKg,
       gender,
       fitnessGoal,
-      experienceLevel = 'iniciante',
-      activityLevel = 'sedentario',
+      role,
+      experienceLevel,
+      activityLevel,
       workoutFrequency,
       lastWorkoutDate,
-      consistencyScore,
       subscriptionType,
       desiredWeightKg,
       hydrationReminder,
@@ -61,7 +62,6 @@ export const authService = {
       workoutSchedule,
     } = data
 
-    // Verifica se email já existe
     const existingUser = await db.query(
       'SELECT id FROM users WHERE email = $1',
       [email]
@@ -70,29 +70,26 @@ export const authService = {
       throw new Error('Email já cadastrado')
     }
 
-    // Hash da senha
     const passwordHash = await hashPassword(password)
-
-    // Inicia transação
     const client = await db.connect()
 
     try {
       await client.query('BEGIN')
 
-      // 1. Cria o usuário na tabela users
+      // 1. Cria o usuário na tabela users (COM role)
       const userResult = await client.query(
         `INSERT INTO users (
-    email, password_hash, name, height_cm, birth_date,
-    weight_kg, gender, fitness_goal, experience_level, activity_level,
-    workout_frequency, last_workout_date, consistency_score,
-    subscription_type, desired_weight_kg, hydration_reminder, 
-    desired_modality, workout_schedule
-  ) 
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
-  RETURNING id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
-            experience_level, activity_level, workout_frequency, last_workout_date, 
-            consistency_score, subscription_type, desired_weight_kg, hydration_reminder, 
-            desired_modality, workout_schedule`,
+          email, password_hash, name, height_cm, birth_date,
+          weight_kg, gender, fitness_goal, role, experience_level, activity_level,
+          workout_frequency, last_workout_date,
+          subscription_type, desired_weight_kg, hydration_reminder, 
+          desired_modality, workout_schedule
+        ) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
+        RETURNING id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
+                  role, experience_level, activity_level, workout_frequency, last_workout_date, 
+                  subscription_type, desired_weight_kg, hydration_reminder, 
+                  desired_modality, workout_schedule`,
         [
           email,
           passwordHash,
@@ -102,11 +99,11 @@ export const authService = {
           weightKg,
           gender,
           fitnessGoal,
+          role,
           experienceLevel || null,
-          activityLevel,
-          workoutFrequency,
+          activityLevel || null,
+          workoutFrequency || null,
           lastWorkoutDate || null,
-          consistencyScore || null,
           subscriptionType,
           desiredWeightKg,
           hydrationReminder,
@@ -115,10 +112,8 @@ export const authService = {
         ]
       )
 
-      // ✅ DEPOIS:
       const userDb = userResult.rows[0]
 
-      // Mapear snake_case para camelCase e converter DECIMAL para number
       const user: User = {
         id: userDb.id,
         email: userDb.email,
@@ -128,28 +123,29 @@ export const authService = {
         weightKg: Number(userDb.weight_kg),
         gender: userDb.gender,
         fitnessGoal: userDb.fitness_goal,
+        role: userDb.role,
         experienceLevel: userDb.experience_level,
         activityLevel: userDb.activity_level,
         workoutFrequency: userDb.workout_frequency,
         lastWorkoutDate: userDb.last_workout_date,
-        consistencyScore: userDb.consistency_score,
         subscriptionType: userDb.subscription_type,
         desiredWeightKg: userDb.desired_weight_kg
           ? Number(userDb.desired_weight_kg)
           : null,
         hydrationReminder: userDb.hydration_reminder,
         desiredModality: userDb.desired_modality,
-        workoutSchedule: userDb.workout_schedule, // JSONB já vem como objeto
+        workoutSchedule: userDb.workout_schedule,
       }
+
       // 2. Cria o perfil na tabela user_profiles
       await client.query(
         `INSERT INTO user_profiles (
-    user_id, weight_kg, height_cm, birth_date, gender,
-    fitness_goal, experience_level, activity_level,
-    workout_frequency, last_workout_date, consistency_score,
-    subscription_type, desired_weight_kg, hydration_reminder, 
-    desired_modality, workout_schedule
-  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          user_id, weight_kg, height_cm, birth_date, gender,
+          fitness_goal, role, experience_level, activity_level,
+          workout_frequency, last_workout_date,
+          subscription_type, desired_weight_kg, hydration_reminder, 
+          desired_modality, workout_schedule
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
         [
           user.id,
           weightKg,
@@ -157,15 +153,15 @@ export const authService = {
           birthDate,
           gender,
           fitnessGoal,
-          experienceLevel,
-          activityLevel,
-          workoutFrequency,
+          role,
+          experienceLevel || null,
+          activityLevel || null,
+          workoutFrequency || null,
           lastWorkoutDate || null,
-          consistencyScore || null,
           subscriptionType,
           desiredWeightKg,
           hydrationReminder,
-          desiredModality,
+          desiredModality || null,
           workoutSchedule ? JSON.stringify(workoutSchedule) : null,
         ]
       )
@@ -196,13 +192,12 @@ export const authService = {
 
   // 2. LOGIN
   async login({ email, password }: LoginRequest): Promise<AuthResponse> {
-    // Busca usuário COM TODOS OS CAMPOS (incluindo os novos de condição física)
     const result = await db.query(
       `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
-            experience_level, activity_level, workout_frequency, last_workout_date, 
-            consistency_score, subscription_type, desired_weight_kg, 
-            hydration_reminder, desired_modality, workout_schedule, password_hash 
-     FROM users WHERE email = $1`,
+              role, experience_level, activity_level, workout_frequency, last_workout_date, 
+              subscription_type, desired_weight_kg, 
+              hydration_reminder, desired_modality, workout_schedule, password_hash 
+       FROM users WHERE email = $1`,
       [email]
     )
 
@@ -212,13 +207,11 @@ export const authService = {
 
     const userDb = result.rows[0]
 
-    // Compara senha
     const isPasswordValid = await bcrypt.compare(password, userDb.password_hash)
     if (!isPasswordValid) {
       throw new Error('Credenciais inválidas')
     }
 
-    // Constrói o usuário com todos os campos (convertendo DECIMAL para number)
     const user: User = {
       id: userDb.id,
       email: userDb.email,
@@ -228,29 +221,28 @@ export const authService = {
       weightKg: Number(userDb.weight_kg),
       gender: userDb.gender,
       fitnessGoal: userDb.fitness_goal,
+      role: userDb.role,
       experienceLevel: userDb.experience_level,
       activityLevel: userDb.activity_level,
       workoutFrequency: userDb.workout_frequency,
       lastWorkoutDate: userDb.last_workout_date,
-      consistencyScore: userDb.consistency_score,
       subscriptionType: userDb.subscription_type,
       desiredWeightKg: userDb.desired_weight_kg
         ? Number(userDb.desired_weight_kg)
         : null,
       hydrationReminder: userDb.hydration_reminder,
       desiredModality: userDb.desired_modality,
-      workoutSchedule: userDb.workout_schedule, // JSONB já vem como objeto
+      workoutSchedule: userDb.workout_schedule,
     }
 
     const tokens = generateTokens(user)
 
-    // Salva novo refresh token
     const refreshTokenHash = await hashPassword(tokens.refreshToken)
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
     await db.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
-     VALUES ($1, $2, $3)`,
+       VALUES ($1, $2, $3)`,
       [user.id, refreshTokenHash, expiresAt]
     )
 
@@ -291,18 +283,16 @@ export const authService = {
       throw new Error('Refresh token inválido')
     }
 
-    // Gera novos tokens (Busca dados completos do usuário)
-    // No refresh, atualize o SELECT:
     const userResult = await db.query(
       `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
-          experience_level, activity_level, workout_frequency, last_workout_date, 
-          consistency_score, subscription_type, desired_weight_kg, 
-          hydration_reminder, desired_modality, workout_schedule 
-   FROM users WHERE id = $1`,
+              role, experience_level, activity_level, workout_frequency, last_workout_date, 
+              subscription_type, desired_weight_kg, 
+              hydration_reminder, desired_modality, workout_schedule 
+       FROM users WHERE id = $1`,
       [validTokenRecord.user_id]
     )
+
     const userDb = userResult.rows[0]
-    // E a construção do user:
     const user: User = {
       id: userDb.id,
       email: userDb.email,
@@ -312,11 +302,11 @@ export const authService = {
       weightKg: Number(userDb.weight_kg),
       gender: userDb.gender,
       fitnessGoal: userDb.fitness_goal,
+      role: userDb.role,
       experienceLevel: userDb.experience_level,
       activityLevel: userDb.activity_level,
       workoutFrequency: userDb.workout_frequency,
       lastWorkoutDate: userDb.last_workout_date,
-      consistencyScore: userDb.consistency_score,
       subscriptionType: userDb.subscription_type,
       desiredWeightKg: userDb.desired_weight_kg
         ? Number(userDb.desired_weight_kg)
@@ -328,12 +318,10 @@ export const authService = {
 
     const newTokens = generateTokens(user)
 
-    // Invalida o token antigo
     await db.query('DELETE FROM refresh_tokens WHERE id = $1', [
       validTokenRecord.id,
     ])
 
-    // Salva o novo token
     const newTokenHash = await hashPassword(newTokens.refreshToken)
     const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 

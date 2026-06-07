@@ -2,7 +2,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { authService } from './auth.service'
 
-// Regex simples para validação de email
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const authController = {
@@ -17,11 +16,11 @@ export const authController = {
         weightKg,
         gender,
         fitnessGoal,
+        role,
         experienceLevel,
         activityLevel,
         workoutFrequency,
         lastWorkoutDate,
-        consistencyScore,
         subscriptionType,
         desiredWeightKg,
         hydrationReminder,
@@ -29,7 +28,7 @@ export const authController = {
         workoutSchedule,
       } = req.body
 
-      // 1. Validações de formato básico
+      // 1. Validações básicas
       if (!email || !emailRegex.test(email)) {
         return res.status(400).json({ error: 'Formato de email inválido' })
       }
@@ -51,39 +50,63 @@ export const authController = {
         return res.status(400).json({ error: 'Campos obrigatórios faltando' })
       }
 
-      // 2. Validação de activityLevel (OBRIGATÓRIO para recomendação)
+      // 2. Validação de role (OBRIGATÓRIO)
+      if (!role || !['comum', 'admin', 'professor'].includes(role)) {
+        return res.status(400).json({
+          error: 'Role inválido. Use: comum | admin | professor',
+        })
+      }
+
+      // 3. Validação de subscriptionType por role
+      if (!subscriptionType) {
+        return res
+          .status(400)
+          .json({ error: 'Tipo de assinatura é obrigatório' })
+      }
+
+      // Admin e professor podem ter qualquer tipo, comum só pode free ou basic
+      if (role === 'comum' && !['free', 'basic'].includes(subscriptionType)) {
+        return res.status(400).json({
+          error: 'Usuários comuns só podem ter assinatura free ou basic',
+        })
+      }
+
+      if (!['free', 'basic', 'premium'].includes(subscriptionType)) {
+        return res.status(400).json({ error: 'Tipo de assinatura inválido' })
+      }
+
+      // 4. Validações opcionais
       if (
-        !activityLevel ||
+        experienceLevel &&
+        !['iniciante', 'intermediario', 'avancado'].includes(experienceLevel)
+      ) {
+        return res.status(400).json({
+          error:
+            'experienceLevel deve ser: iniciante | intermediario | avancado',
+        })
+      }
+
+      if (
+        activityLevel &&
         !['sedentario', 'leve', 'moderado', 'ativo', 'muito_ativo'].includes(
           activityLevel
         )
       ) {
         return res.status(400).json({
           error:
-            'Nível de atividade inválido. Use: sedentario | leve | moderado | ativo | muito_ativo',
+            'activityLevel deve ser: sedentario | leve | moderado | ativo | muito_ativo',
         })
       }
 
-      // 3. Validação de workoutFrequency (0-7 dias)
       if (
-        workoutFrequency === undefined ||
-        typeof workoutFrequency !== 'number' ||
-        workoutFrequency < 0 ||
-        workoutFrequency > 7
+        workoutFrequency !== undefined &&
+        (typeof workoutFrequency !== 'number' ||
+          workoutFrequency < 0 ||
+          workoutFrequency > 7)
       ) {
-        return res
-          .status(400)
-          .json({
-            error: 'Frequência de treino deve ser um número entre 0 e 7',
-          })
-      }
-
-      // 4. Validação de campos de preferência
-      if (
-        !subscriptionType ||
-        !['free', 'basic', 'premium'].includes(subscriptionType)
-      ) {
-        return res.status(400).json({ error: 'Tipo de assinatura inválido' })
+        return res.status(400).json({
+          error: 'workoutFrequency deve ser um número entre 0 e 7',
+        })
       }
 
       if (typeof desiredWeightKg !== 'number') {
@@ -98,7 +121,7 @@ export const authController = {
           .json({ error: 'Lembrete de hidratação deve ser true ou false' })
       }
 
-      // 5. Validação do workoutSchedule (array de 7 booleanos + horário fixo)
+      // 5. Validação de workoutSchedule
       if (workoutSchedule !== undefined) {
         if (typeof workoutSchedule !== 'object' || workoutSchedule === null) {
           return res
@@ -130,17 +153,7 @@ export const authController = {
         }
       }
 
-      // 6. Validação opcional de consistencyScore
-      if (
-        consistencyScore &&
-        !['low', 'medium', 'high'].includes(consistencyScore)
-      ) {
-        return res.status(400).json({
-          error: 'consistencyScore deve ser: low | medium | high',
-        })
-      }
-
-      // 7. Chama o service com TODOS os campos
+      // 6. Chama o service
       const result = await authService.register({
         email,
         password,
@@ -150,16 +163,16 @@ export const authController = {
         weightKg: Number(weightKg),
         gender,
         fitnessGoal,
-        experienceLevel, // informativo apenas
-        activityLevel, // essencial para recomendação
-        workoutFrequency: Number(workoutFrequency),
-        lastWorkoutDate,
-        consistencyScore,
+        role,
+        experienceLevel: experienceLevel || null,
+        activityLevel: activityLevel || null,
+        workoutFrequency: workoutFrequency,
+        lastWorkoutDate: lastWorkoutDate || null,
         subscriptionType,
         desiredWeightKg,
         hydrationReminder,
-        desiredModality,
-        workoutSchedule,
+        desiredModality: desiredModality || null,
+        workoutSchedule: workoutSchedule || null,
       })
 
       res.status(201).json(result)

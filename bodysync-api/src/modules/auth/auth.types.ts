@@ -52,7 +52,7 @@ export interface RegisterRequest {
 
   // Novos campos de preferências
   subscriptionType: 'free' | 'basic' | 'premium'
-  desiredWeightKg: number
+  desiredWeightKg?: number | null
   hydrationReminder: boolean
   desiredModality: string
 

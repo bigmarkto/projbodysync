@@ -10,177 +10,223 @@ export const authController = {
       const {
         email,
         password,
+        confirmPassword,
         name,
-        heightCm,
+        birthYear,
         birthDate,
+        heightCm,
         weightKg,
+        desiredWeightKg,
         gender,
         fitnessGoal,
-        role,
         experienceLevel,
         activityLevel,
-        workoutFrequency,
-        lastWorkoutDate,
+        role,
         subscriptionType,
-        desiredWeightKg,
         hydrationReminder,
+        hydrationTime,
         desiredModality,
+        modalities,
         workoutSchedule,
+        workoutDays,
+        workoutTime,
       } = req.body
 
       // 1. Validações básicas
       if (!email || !emailRegex.test(email)) {
-        return res.status(400).json({ error: 'Formato de email inválido' })
+        return res.status(400).json({
+          error: 'Formato de email inválido. Exemplo: usuario@email.com',
+        })
       }
 
-      if (!password || password.length < 8) {
-        return res
-          .status(400)
-          .json({ error: 'A senha deve ter no mínimo 8 caracteres' })
+      if (!password || typeof password !== 'string') {
+        return res.status(400).json({ error: 'Senha é obrigatória' })
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({
+          error: 'A senha deve ter no mínimo 8 caracteres',
+        })
+      }
+
+      // Validação de confirmPassword (opcional - só se enviado)
+      if (confirmPassword !== undefined && password !== confirmPassword) {
+        return res.status(400).json({ error: 'As senhas não coincidem' })
+      }
+
+      if (!name || name.trim().length < 3) {
+        return res.status(400).json({
+          error: 'Nome deve ter pelo menos 3 caracteres',
+        })
+      }
+
+      // Converter birthYear/birthDate para birthDate (YYYY-MM-DD)
+      let finalBirthDate: string
+      const dateValue = birthYear || birthDate
+
+      console.log('🔍 DEBUG - Data de nascimento:', {
+        birthYear,
+        birthDate,
+        dateValue,
+        type: typeof dateValue,
+      })
+
+      if (!dateValue || dateValue === null || dateValue === undefined) {
+        return res.status(400).json({
+          error:
+            'Data de nascimento é obrigatória. Envie birthYear ou birthDate.',
+        })
+      }
+
+      try {
+        const dateStr = dateValue.toString()
+        finalBirthDate = dateStr.includes('-') ? dateStr : `${dateStr}-01-01`
+      } catch (error) {
+        console.error('Erro ao processar data:', error)
+        return res.status(400).json({ error: 'Data de nascimento inválida' })
+      }
+
+      if (!heightCm || isNaN(Number(heightCm)) || Number(heightCm) <= 0) {
+        return res.status(400).json({
+          error: 'Altura deve ser um número válido em centímetros',
+        })
+      }
+
+      if (!weightKg || isNaN(Number(weightKg)) || Number(weightKg) <= 0) {
+        return res.status(400).json({
+          error: 'Peso deve ser um número válido em quilogramas',
+        })
       }
 
       if (
-        !name ||
-        !heightCm ||
-        !birthDate ||
-        !weightKg ||
         !gender ||
-        !fitnessGoal
-      ) {
-        return res.status(400).json({ error: 'Campos obrigatórios faltando' })
-      }
-
-      // 2. Validação de role (OBRIGATÓRIO)
-      if (!role || !['comum', 'admin', 'professor'].includes(role)) {
-        return res.status(400).json({
-          error: 'Role inválido. Use: comum | admin | professor',
-        })
-      }
-
-      // 3. Validação de subscriptionType por role
-      if (!subscriptionType) {
-        return res
-          .status(400)
-          .json({ error: 'Tipo de assinatura é obrigatório' })
-      }
-
-      // Admin e professor podem ter qualquer tipo, comum só pode free ou basic
-      if (role === 'comum' && !['free', 'basic'].includes(subscriptionType)) {
-        return res.status(400).json({
-          error: 'Usuários comuns só podem ter assinatura free ou basic',
-        })
-      }
-
-      if (!['free', 'basic', 'premium'].includes(subscriptionType)) {
-        return res.status(400).json({ error: 'Tipo de assinatura inválido' })
-      }
-
-      // 4. Validações opcionais
-      if (
-        experienceLevel &&
-        !['iniciante', 'intermediario', 'avancado'].includes(experienceLevel)
+        !['masculino', 'feminino', 'outro', 'nao_binario'].includes(gender)
       ) {
         return res.status(400).json({
           error:
-            'experienceLevel deve ser: iniciante | intermediario | avancado',
+            'Gênero inválido. Use: masculino | feminino | outro | nao_binario',
         })
       }
 
-      if (
-        activityLevel &&
-        !['sedentario', 'leve', 'moderado', 'ativo', 'muito_ativo'].includes(
-          activityLevel
-        )
-      ) {
+      // Resolver fitnessGoal e experienceLevel
+      const validFitnessGoals = [
+        'emagrecimento',
+        'ganho_peso',
+        'ganho_massa_muscular',
+        'condicionamento_fisico',
+        'saude_bem_estar',
+      ]
+      const validExperienceLevels = ['iniciante', 'intermediario', 'avancado']
+
+      let finalFitnessGoal = fitnessGoal
+      let finalExperienceLevel = experienceLevel
+
+      if (fitnessGoal && validExperienceLevels.includes(fitnessGoal)) {
+        finalExperienceLevel = fitnessGoal
+        finalFitnessGoal = 'condicionamento_fisico'
+      }
+
+      if (!finalFitnessGoal || !validFitnessGoals.includes(finalFitnessGoal)) {
+        finalFitnessGoal = 'condicionamento_fisico'
+      }
+
+      // activityLevel é opcional agora
+      const finalActivityLevel = activityLevel || 'moderado'
+
+      // role é opcional (padrão: comum)
+      const finalRole = role || 'comum'
+
+      if (!['comum', 'admin', 'professor'].includes(finalRole)) {
         return res.status(400).json({
-          error:
-            'activityLevel deve ser: sedentario | leve | moderado | ativo | muito_ativo',
+          error: 'Tipo de usuário inválido. Use: comum | admin | professor',
         })
       }
 
-      if (
-        workoutFrequency !== undefined &&
-        (typeof workoutFrequency !== 'number' ||
-          workoutFrequency < 0 ||
-          workoutFrequency > 7)
-      ) {
+      // subscriptionType (padrão: free)
+      const finalSubscriptionType = subscriptionType || 'free'
+
+      if (!['free', 'basic', 'premium'].includes(finalSubscriptionType)) {
         return res.status(400).json({
-          error: 'workoutFrequency deve ser um número entre 0 e 7',
+          error: 'Tipo de assinatura inválido. Use: free | basic | premium',
         })
       }
 
-      if (typeof desiredWeightKg !== 'number') {
-        return res
-          .status(400)
-          .json({ error: 'Peso desejado deve ser um número' })
+      // desiredWeightKg (opcional)
+      const finalDesiredWeightKg = desiredWeightKg
+        ? Number(desiredWeightKg)
+        : null
+
+      // hydrationReminder (padrão: false)
+      const finalHydrationReminder = hydrationReminder ?? false
+
+      // desiredModality (aceita string ou array)
+      let finalDesiredModality = desiredModality || null
+      if (modalities && Array.isArray(modalities)) {
+        finalDesiredModality = modalities.length > 0 ? modalities[0] : null
       }
 
-      if (typeof hydrationReminder !== 'boolean') {
-        return res
-          .status(400)
-          .json({ error: 'Lembrete de hidratação deve ser true ou false' })
-      }
-
-      // 5. Validação de workoutSchedule
-      if (workoutSchedule !== undefined) {
-        if (typeof workoutSchedule !== 'object' || workoutSchedule === null) {
-          return res
-            .status(400)
-            .json({ error: 'workoutSchedule deve ser um objeto' })
-        }
-
-        const { days, time } = workoutSchedule
-
-        if (
-          !Array.isArray(days) ||
-          days.length !== 7 ||
-          !days.every(d => typeof d === 'boolean')
-        ) {
+      // workoutSchedule (aceita objeto ou workoutDays + workoutTime)
+      let finalWorkoutSchedule = null
+      if (workoutSchedule && typeof workoutSchedule === 'object') {
+        finalWorkoutSchedule = workoutSchedule
+      } else if (workoutDays || workoutTime) {
+        if (!Array.isArray(workoutDays)) {
           return res.status(400).json({
-            error:
-              'days deve ser um array de exatamente 7 booleanos [domingo, segunda, terca, quarta, quinta, sexta, sabado]',
+            error: 'workoutDays deve ser um array de números (0-6)',
           })
         }
-
-        if (
-          time !== null &&
-          (typeof time !== 'string' || !/^\d{2}:\d{2}$/.test(time))
-        ) {
-          return res.status(400).json({
-            error:
-              'time deve ser uma string no formato HH:MM (ex: "18:00") ou null',
-          })
+        const daysArray = new Array(7).fill(false)
+        workoutDays.forEach((dayIndex: number) => {
+          if (dayIndex >= 0 && dayIndex <= 6) {
+            daysArray[dayIndex] = true
+          }
+        })
+        finalWorkoutSchedule = {
+          days: daysArray,
+          time: workoutTime || null,
         }
       }
 
-      // 6. Chama o service
+      // Chama o service
       const result = await authService.register({
         email,
         password,
-        name,
+        name: name.trim(),
         heightCm: Number(heightCm),
-        birthDate,
+        birthDate: finalBirthDate,
         weightKg: Number(weightKg),
         gender,
-        fitnessGoal,
-        role,
-        experienceLevel: experienceLevel || null,
-        activityLevel: activityLevel || null,
-        workoutFrequency: workoutFrequency,
-        lastWorkoutDate: lastWorkoutDate || null,
-        subscriptionType,
-        desiredWeightKg,
-        hydrationReminder,
-        desiredModality: desiredModality || null,
-        workoutSchedule: workoutSchedule || null,
+        fitnessGoal: finalFitnessGoal,
+        role: finalRole,
+        experienceLevel: finalExperienceLevel || null,
+        activityLevel: finalActivityLevel,
+        workoutFrequency: finalWorkoutSchedule
+          ? finalWorkoutSchedule.days.filter(Boolean).length
+          : null,
+        lastWorkoutDate: undefined,
+        subscriptionType: finalSubscriptionType,
+        desiredWeightKg: finalDesiredWeightKg,
+        hydrationReminder: finalHydrationReminder,
+        desiredModality: finalDesiredModality,
+        workoutSchedule: finalWorkoutSchedule || undefined,
       })
 
-      res.status(201).json(result)
+      return res.status(201).json({
+        message: 'Usuário cadastrado com sucesso!',
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      })
     } catch (error: any) {
+      console.error('Erro no registro:', error)
+
       if (error.message === 'Email já cadastrado') {
-        return res.status(409).json({ error: 'Email já cadastrado' })
+        return res.status(409).json({ error: 'Este email já está cadastrado' })
       }
-      next(error)
+
+      return res.status(500).json({
+        error: 'Erro interno ao cadastrar usuário. Tente novamente.',
+      })
     }
   },
 
@@ -193,7 +239,13 @@ export const authController = {
       }
 
       const result = await authService.login({ email, password })
-      res.status(200).json(result)
+
+      return res.status(200).json({
+        message: 'Login realizado com sucesso!',
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      })
     } catch (error: any) {
       if (error.message === 'Credenciais inválidas') {
         return res.status(401).json({ error: 'Email ou senha inválidos' })
@@ -209,7 +261,7 @@ export const authController = {
         return res.status(400).json({ error: 'Refresh token é obrigatório' })
       }
       const tokens = await authService.refresh(refreshToken)
-      res.status(200).json(tokens)
+      return res.status(200).json(tokens)
     } catch (error) {
       next(error)
     }
@@ -222,7 +274,7 @@ export const authController = {
         return res.status(400).json({ error: 'Refresh token é obrigatório' })
       }
       await authService.logout(refreshToken)
-      res.status(204).send()
+      return res.status(204).send()
     } catch (error) {
       next(error)
     }

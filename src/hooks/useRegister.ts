@@ -1,40 +1,51 @@
-import { useApi } from './useApi';
-import { RegisterData } from '../screens/Registration/RegisterContext';
+import { useApi } from './useApi'
+import { RegisterData } from '../screens/Registration/RegisterContext'
 
 export const useRegisterApi = () => {
-  const { request } = useApi();
+  const { request } = useApi()
 
   const register = async (data: RegisterData) => {
+    // ✅ Converter workoutDays para array de booleanos
+    const boolDays = Array(7).fill(false)
+    data.workoutDays.forEach(d => {
+      if (d >= 0 && d < 7) boolDays[d] = true
+    })
+
     const payload = {
       email: data.email,
       password: data.password,
+      confirmPassword: data.password, // Adicionado
       name: data.name,
-      heightCm: Number(data.heightCm),
-      birthDate: Number(data.birthYear),
-      weightKg: Number(data.weightKg),
+      birthYear: data.birthYear, // Enviar como string (não converter!)
+      heightCm: data.heightCm,
+      weightKg: data.weightKg,
+      desiredWeightKg: data.desiredWeightKg,
       gender: data.gender,
-      fitnessGoal: data.experienceLevel,
+      fitnessGoal: 'condicionamento_fisico', // Valor padrão
+      experienceLevel: data.experienceLevel, // Campo correto
+      activityLevel: 'moderado', // Valor padrão (ajuste conforme necessário)
+      role: data.role || 'comum', // Adicionado
       subscriptionType: data.subscriptionType,
-      desiredWeightKg: Number(data.desiredWeightKg),
       hydrationReminder: data.hydrationReminder,
-      desiredModality: data.modalities[0] || "",
+      hydrationTime: data.hydrationTime || null,
+      modalities: data.modalities, // Enviar array completo
+      workoutDays: data.workoutDays,
+      workoutTime: data.workoutTime,
       workoutSchedule: {
-        days: (() => {
-          const boolDays = Array(7).fill(false);
-          data.workoutDays.forEach((d) => {
-            if (d >= 0 && d < 7) boolDays[d] = true;
-          });
-          return boolDays;
-        })(),
+        days: boolDays,
         time: data.workoutTime,
       },
-    };
+    }
+
     const res = await request('/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload),
-    });
-    return { res, json: await res.json() };
-  };
+    })
 
-  return { register };
-};
+    const json = await res.json()
+
+    return { res, json }
+  }
+
+  return { register }
+}

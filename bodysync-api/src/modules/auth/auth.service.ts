@@ -101,7 +101,7 @@ export const authService = {
           fitnessGoal,
           role,
           experienceLevel || null,
-          activityLevel || null,
+          activityLevel,
           workoutFrequency || null,
           lastWorkoutDate || null,
           subscriptionType,

@@ -1,5 +1,12 @@
-// src/modules/auth/auth.types.ts
+export interface ForgotPasswordRequest {
+  email: string
+}
 
+export interface ResetPasswordRequest {
+  token: string
+  password: string
+  confirmPassword: string
+}
 export type Gender = 'masculino' | 'feminino' | 'outro' | 'nao_binario'
 
 export type FitnessGoal =
@@ -83,7 +90,6 @@ export interface User {
   activityLevel: ActivityLevel
   workoutFrequency: number | null
   lastWorkoutDate: string | null
-  
 
   // Preferências
   subscriptionType: string

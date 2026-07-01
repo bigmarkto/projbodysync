@@ -49,6 +49,17 @@ export const authController = {
         })
       }
 
+      // Validação de senha forte (maiúscula + número)
+      const hasUpperCase = /[A-Z]/.test(password)
+      const hasNumber = /[0-9]/.test(password)
+
+      if (!hasUpperCase || !hasNumber) {
+        return res.status(400).json({
+          error:
+            'A senha deve conter pelo menos uma letra maiúscula e um número',
+        })
+      }
+
       // Validação de confirmPassword (opcional - só se enviado)
       if (confirmPassword !== undefined && password !== confirmPassword) {
         return res.status(400).json({ error: 'As senhas não coincidem' })
@@ -276,6 +287,74 @@ export const authController = {
       await authService.logout(refreshToken)
       return res.status(204).send()
     } catch (error) {
+      next(error)
+    }
+  },
+  async forgotPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email } = req.body
+
+      if (!email || !emailRegex.test(email)) {
+        return res.status(400).json({ error: 'Formato de email inválido' })
+      }
+
+      // Chama o service (sempre retorna sucesso para não revelar se o email existe)
+      await authService.forgotPassword(email)
+
+      // Mensagem genérica (Requisito de segurança)
+      return res.status(200).json({
+        message:
+          'Se o e-mail estiver cadastrado, você receberá as instruções de recuperação em instantes.',
+      })
+    } catch (error) {
+      next(error)
+    }
+  },
+
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token, password, confirmPassword } = req.body
+
+      if (!token || typeof token !== 'string') {
+        return res
+          .status(400)
+          .json({ error: 'Token de recuperação é obrigatório' })
+      }
+
+      if (!password || typeof password !== 'string') {
+        return res.status(400).json({ error: 'Senha é obrigatória' })
+      }
+
+      // Validação de senha forte (RFS03: min 8 chars, 1 maiúscula, 1 número)
+      if (password.length < 8) {
+        return res
+          .status(400)
+          .json({ error: 'A senha deve ter no mínimo 8 caracteres' })
+      }
+
+      const hasUpperCase = /[A-Z]/.test(password)
+      const hasNumber = /[0-9]/.test(password)
+
+      if (!hasUpperCase || !hasNumber) {
+        return res.status(400).json({
+          error:
+            'A senha deve conter pelo menos uma letra maiúscula e um número',
+        })
+      }
+
+      if (password !== confirmPassword) {
+        return res.status(400).json({ error: 'As senhas não coincidem' })
+      }
+
+      await authService.resetPassword(token, password)
+
+      return res.status(200).json({
+        message: 'Senha redefinida com sucesso! Faça login com a nova senha.',
+      })
+    } catch (error: any) {
+      if (error.message === 'Token inválido ou expirado') {
+        return res.status(400).json({ error: error.message })
+      }
       next(error)
     }
   },

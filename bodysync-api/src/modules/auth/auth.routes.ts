@@ -11,4 +11,8 @@ router.post('/login', authController.login)
 router.post('/refresh', authController.refresh)
 router.post('/logout', authController.logout)
 
+// Novas rotas de recuperação de senha
+router.post('/forgot-password', authController.forgotPassword)
+router.post('/reset-password', authController.resetPassword)
+
 export { router as authRoutes }

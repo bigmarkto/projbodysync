@@ -9,6 +9,7 @@ import {
   AuthResponse,
   JwtPayload,
 } from './auth.types'
+import crypto from 'crypto'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -351,5 +352,83 @@ export const authService = {
     if (result.rowCount === 0) {
       throw new Error('Nenhum token ativo encontrado')
     }
+  },
+  // 5. RECUPERAÇÃO DE SENHA (Solicitação)
+  async forgotPassword(email: string): Promise<void> {
+    // Busca o usuário (não revela se existe ou não)
+    const result = await db.query('SELECT id FROM users WHERE email = $1', [
+      email,
+    ])
+
+    if (result.rows.length === 0) {
+      // Retorna silenciosamente para manter a mensagem genérica
+      return
+    }
+
+    const userId = result.rows[0].id
+
+    // Gera um token único e seguro
+    const token = crypto.randomBytes(32).toString('hex')
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutos
+
+    // Salva o token no banco
+    await db.query(
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at) 
+       VALUES ($1, $2, $3)`,
+      [userId, token, expiresAt]
+    )
+
+    // TODO: Integrar com Nodemailer para enviar o email de verdade
+    // Por enquanto, logamos no console para facilitar os testes
+    console.log('=========================================')
+    console.log('🔑 TOKEN DE RECUPERAÇÃO GERADO:')
+    console.log(`Email: ${email}`)
+    console.log(`Token: ${token}`)
+    console.log(`Expira em: ${expiresAt.toLocaleString()}`)
+    console.log('=========================================')
+
+    // Exemplo de como seria com Nodemailer:
+    // await sendRecoveryEmail(email, token)
+  },
+
+  // 6. RECUPERAÇÃO DE SENHA (Redefinição)
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    // Busca o token no banco
+    const result = await db.query(
+      `SELECT id, user_id, expires_at, used FROM password_reset_tokens 
+       WHERE token = $1`,
+      [token]
+    )
+
+    if (result.rows.length === 0) {
+      throw new Error('Token inválido ou expirado')
+    }
+
+    const tokenRecord = result.rows[0]
+
+    // Verifica se já foi usado
+    if (tokenRecord.used) {
+      throw new Error('Token inválido ou expirado')
+    }
+
+    // Verifica se expirou (30 minutos)
+    if (new Date(tokenRecord.expires_at) < new Date()) {
+      throw new Error('Token inválido ou expirado')
+    }
+
+    // Gera o novo hash da senha
+    const passwordHash = await hashPassword(newPassword)
+
+    // Atualiza a senha do usuário
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+      passwordHash,
+      tokenRecord.user_id,
+    ])
+
+    // Invalida o token usado (RFS03: "sistema invalida o link usado")
+    await db.query(
+      'UPDATE password_reset_tokens SET used = TRUE WHERE id = $1',
+      [tokenRecord.id]
+    )
   },
 }

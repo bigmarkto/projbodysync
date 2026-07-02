@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = "http://192.168.1.102:3000/api";
+const API_URL = "http://192.168.68.113:3000/api";
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: "@bodysync:accessToken",

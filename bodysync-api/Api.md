@@ -534,6 +534,70 @@ O fluxo de recuperação funciona em **3 etapas**:
 
 ---
 
+## 💧 Hidratação (`/hydration`)
+
+**⚠️ Todas as rotas deste módulo exigem autenticação.**
+
+> **Metas:** o sistema mantém duas metas:
+> - **Sugerida** — calculada pelo peso (`peso × 35ml`). Se não houver peso, usa `2000ml`.
+> - **Personalizada** (`customGoalMl`) — definida pelo usuário. Quando existe, tem prioridade.
+>
+> A meta **efetiva** (`goalMl`) é `customGoalMl ?? suggestedGoalMl`. Copo padrão = **250ml**.
+
+### 1. GET `/hydration`
+**Descrição:** Status de hidratação do **dia atual**.
+
+**Retorno (200 OK):**
+```json
+{
+  "date": "2026-07-02",
+  "consumedMl": 1500,
+  "goalMl": 2730,
+  "suggestedGoalMl": 2730,
+  "customGoalMl": null,
+  "cupSizeMl": 250,
+  "cups": { "consumed": 6, "total": 11 },
+  "percentage": 55
+}
+```
+
+### 2. POST `/hydration`
+**Descrição:** Registra consumo no dia atual. Cria a linha do dia se não existir. O total nunca fica abaixo de 0.
+
+**Enviar (JSON):**
+```json
+{ "amountMl": 250 }
+```
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `amountMl` | number | Opcional. Padrão `250` (1 copo). Aceita **negativo** para desfazer. |
+
+**Retorno (200 OK):** Mesmo formato do GET `/hydration`.
+
+### 3. PUT `/hydration/goal`
+**Descrição:** Define ou remove a meta personalizada.
+
+**Enviar (JSON):**
+```json
+{ "goalMl": 3000 }
+```
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `goalMl` | number \| null | Meta em ml (entre **500** e **8000**). `null` remove a meta custom e volta para a sugerida. |
+
+**Retorno (200 OK):** Mesmo formato do GET `/hydration`.
+
+**Erros possíveis:**
+| Status | Mensagem | Causa |
+|--------|----------|-------|
+| `400` | `"A meta deve estar entre 500ml e 8000ml"` | `goalMl` fora do intervalo |
+| `400` | `"goalMl deve ser um número ou null"` | Tipo inválido |
+| `404` | `"Perfil não encontrado"` | Usuário sem perfil |
+
+> **Migration necessária:** rode `migrations/001_hydration.sql` no Supabase antes de usar (cria `hydration_logs` e a coluna `user_profiles.hydration_goal_ml`).
+
+---
+
 ## 📌 Exercícios (`/exercises`)
 *(A ser implementado - em breve)*
 

@@ -85,7 +85,7 @@ const friendlyError = (raw: string): string => {
 
 const LoginScreen = () => {
   const { login } = useAuth();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

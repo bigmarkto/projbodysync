@@ -4,8 +4,9 @@ import { errorMiddleware } from './middleware/error.middleware'
 import { authRoutes } from './modules/auth/auth.routes'
 import { userProfileRoutes } from './modules/user-profile/user-profile.routes'
 import { hydrationRoutes } from './modules/hydration/hydration.routes'
+import { exerciseRoutes } from './modules/exercise/exercise.routes'
+import { workoutRoutes } from './modules/workout/workout.routes'
 import { paymentRoutes } from './modules/payment/payment.routes'
-// import { exerciseRoutes } from './modules/exercise/exercise.routes' // <-- Descomente quando criar o módulo exercise
 
 const app = express()
 
@@ -20,8 +21,11 @@ app.use('/api/profile', userProfileRoutes)
 // Rota de Hidratação
 app.use('/api/hydration', hydrationRoutes)
 
-// Rotas de Exercícios (descomente quando criar o módulo)
-// app.use('/api/exercises', exerciseRoutes)
+// Rotas de Exercícios (catálogo)
+app.use('/api/exercises', exerciseRoutes)
+
+// Rotas de Planos de Treino
+app.use('/api/workouts', workoutRoutes)
 
 // Rota de Pagamento
 app.use('/api/payment', paymentRoutes)

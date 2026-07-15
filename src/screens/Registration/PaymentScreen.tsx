@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRegister } from "./RegisterContext";
 import { FieldInput, ContinueButton } from "./components";
 import { lightColors } from "../../theme/colors";
+import { API_URL } from "../../config/api";
 
 // TODO: Integração real de pagamento não está disponível na API atual.
 // A API possui apenas POST /payment/subscribe que simula a ativação.
@@ -66,7 +67,7 @@ export const PaymentScreen = ({ onPaid, onBack, accessToken }: Props) => {
     try {
       // TODO: substituir por gateway real (Stripe/MercadoPago)
       // Esta chamada apenas simula a ativação no backend atual
-      const res = await fetch("http://localhost:3000/api/payment/subscribe", {
+      const res = await fetch(`${API_URL}/payment/subscribe`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -598,11 +598,156 @@ O fluxo de recuperação funciona em **3 etapas**:
 
 ---
 
-## 📌 Exercícios (`/exercises`)
-*(A ser implementado - em breve)*
+## 🏋️ Exercícios (`/exercises`)
 
-## 📌 Planos de Treino (`/workouts`)
-*(A ser implementado - em breve)*
+**⚠️ Todas as rotas deste módulo exigem autenticação.**
+
+> `name` e `description` retornam a versão em **português** (`name_pt`/`description_pt`) quando disponível, com fallback para o inglês. `imageUrl` é a URL pública permanente da imagem no Supabase Storage (populada pelo seed).
+
+### 1. GET `/exercises`
+**Descrição:** Catálogo com filtros e paginação.
+
+**Query params (todos opcionais):**
+| Param | Tipo | Descrição |
+|-------|------|-----------|
+| `search` | string | Busca por nome (PT ou EN) |
+| `category` | string | Filtra por categoria |
+| `muscleId` | number | Filtra por grupo muscular |
+| `limit` | number | Padrão `20`, máx `100` |
+| `offset` | number | Padrão `0` |
+
+**Exemplo:** `GET /exercises?search=supino&muscleId=4&limit=20&offset=0`
+
+**Retorno (200 OK):**
+```json
+{
+  "exercises": [
+    {
+      "id": 12,
+      "wgerId": 345,
+      "name": "Supino reto",
+      "description": "...",
+      "category": "Chest",
+      "imageUrl": "https://<proj>.supabase.co/storage/v1/object/public/exercise-images/exercises/345.png",
+      "muscles": [
+        { "id": 4, "name": "Peitoral maior", "isPrimary": true },
+        { "id": 2, "name": "Tríceps", "isPrimary": false }
+      ]
+    }
+  ],
+  "pagination": { "total": 300, "limit": 20, "offset": 0 }
+}
+```
+
+### 2. GET `/exercises/categories`
+**Retorno (200 OK):** `{ "categories": ["Abs", "Arms", "Chest", ...] }`
+
+### 3. GET `/exercises/muscles`
+**Retorno (200 OK):** `{ "muscles": [{ "id": 1, "name": "Bíceps", "wgerId": 1 }, ...] }`
+
+### 4. GET `/exercises/:id`
+**Retorno (200 OK):** `{ "exercise": { ...mesmo formato do item da lista } }`
+
+**Erros:** `400` ID inválido · `404` Exercício não encontrado
+
+---
+
+## 📋 Planos de Treino (`/workouts`)
+
+**⚠️ Todas as rotas exigem autenticação. Cada usuário só acessa os próprios planos.**
+
+### 1. GET `/workouts`
+**Descrição:** Lista os planos do usuário (resumo).
+
+**Retorno (200 OK):**
+```json
+{
+  "plans": [
+    { "id": 1, "name": "Treino A - Peito e Tríceps", "createdAt": "2026-07-15T...", "exerciseCount": 6 }
+  ]
+}
+```
+
+### 2. GET `/workouts/:id`
+**Descrição:** Detalhe do plano com exercícios (dados do catálogo embutidos, na ordem definida).
+
+**Retorno (200 OK):**
+```json
+{
+  "plan": {
+    "id": 1,
+    "userId": "uuid-...",
+    "name": "Treino A - Peito e Tríceps",
+    "createdAt": "2026-07-15T...",
+    "exercises": [
+      {
+        "id": 10,
+        "exerciseId": 12,
+        "sets": 4,
+        "reps": 12,
+        "orderIndex": 0,
+        "exercise": {
+          "id": 12,
+          "name": "Supino reto",
+          "category": "Chest",
+          "imageUrl": "https://...",
+          "muscles": [{ "id": 4, "name": "Peitoral maior", "isPrimary": true }]
+        }
+      }
+    ]
+  }
+}
+```
+
+**Erros:** `404` Plano não encontrado (inclui planos de outro usuário)
+
+### 3. POST `/workouts`
+**Descrição:** Cria um plano com seus exercícios.
+
+**Enviar (JSON):**
+```json
+{
+  "name": "Treino A - Peito e Tríceps",
+  "exercises": [
+    { "exerciseId": 12, "sets": 4, "reps": 12 },
+    { "exerciseId": 18, "sets": 3, "reps": 15 }
+  ]
+}
+```
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `name` | string | **Obrigatório** |
+| `exercises` | array | Opcional. `exerciseId`, `sets` (>0), `reps` (>0). A ordem do array define o `order_index`. |
+
+**Retorno (201 Created):** `{ "plan": { ...detalhe completo } }`
+
+**Erros:** `400` nome vazio / sets|reps inválidos / `Exercícios inexistentes: ...`
+
+### 4. PUT `/workouts/:id`
+**Descrição:** Atualiza o nome e/ou **substitui** a lista de exercícios. Enviar `exercises` troca todos; omitir mantém os atuais.
+
+**Enviar (JSON) — exemplos:**
+```json
+{ "name": "Novo nome" }
+```
+```json
+{ "exercises": [ { "exerciseId": 12, "sets": 5, "reps": 8 } ] }
+```
+
+**Retorno (200 OK):** `{ "plan": { ...detalhe completo } }`
+
+**Erros:** `400` validação · `404` Plano não encontrado
+
+### 5. DELETE `/workouts/:id`
+**Descrição:** Remove o plano e seus exercícios.
+
+**Retorno (204 No Content):** Sem corpo.
+
+**Erros:** `404` Plano não encontrado
+
+---
+
+> **Sessões de treino** (`workout_sessions` / `session_logs`) são o próximo módulo natural — registrar treinos concluídos alimentará o contador "treinos esta semana" e os checkmarks no dashboard.
 
 ---
 

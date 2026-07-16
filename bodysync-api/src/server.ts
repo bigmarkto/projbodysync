@@ -24,7 +24,7 @@ const LOCAL_IP = getLocalIpAddress()
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('=========================================')
-  console.log(`O servidor está rodando na porta http://192.168.68.100:${PORT}`)
+  console.log(`O servidor está rodando na porta http://192.168.68.1:${PORT}`)
   console.log(`O LocalHost é http://localhost:${PORT}`)
   console.log(`Pra ver no celular sem Expo go é http://${LOCAL_IP}:${PORT}`)
   console.log('=========================================')

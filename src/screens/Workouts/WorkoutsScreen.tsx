@@ -8,9 +8,10 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, SafeAreaProvider } from "react-native-safe-area-context";
 import { useTheme } from "../../context/ThemeProvider";
 import { useApi } from "../../hooks/useApi";
 import { lightColors } from "../../theme/colors";
@@ -22,6 +23,20 @@ import {
   PlanSummary,
 } from "./types";
 import PlanEditor from "./PlanEditor";
+import PlanDetailView from "./PlanDetail";
+import PreparingScreen from "./PreparingScreen";
+import WorkoutPlayer from "./WorkoutPlayer";
+import HiitSetup from "./HiitSetup";
+import HiitPlayer from "./HiitPlayer";
+import { HiitSegment, resolveHiitImages } from "./hiit";
+
+// O que a tela de preparação vai lançar ao terminar
+interface Preparing {
+  message: string;
+  icon: "barbell" | "flame";
+  plan?: PlanDetail;
+  script?: HiitSegment[];
+}
 
 const SUB_LABELS: Record<string, string> = {
   free: "Free",
@@ -43,6 +58,11 @@ const WorkoutsScreen = () => {
   const [generating, setGenerating] = useState(false);
 
   const [editing, setEditing] = useState<EditablePlan | null>(null);
+  const [detailPlan, setDetailPlan] = useState<PlanDetail | null>(null);
+  const [preparing, setPreparing] = useState<Preparing | null>(null);
+  const [runningPlan, setRunningPlan] = useState<PlanDetail | null>(null);
+  const [hiitSetup, setHiitSetup] = useState(false);
+  const [hiitScript, setHiitScript] = useState<HiitSegment[] | null>(null);
 
   const loadList = useCallback(async () => {
     setError(null);
@@ -92,20 +112,60 @@ const WorkoutsScreen = () => {
     setEditing({ id: null, name: "", exercises: [] });
   }, []);
 
+  // Abre o detalhe do plano (com o botão "Começar treino")
   const onOpenPlan = useCallback(
     async (id: number) => {
       try {
         const res = await request(`/workouts/${id}`);
         if (!res.ok) throw new Error("Não foi possível abrir o plano.");
         const data = await res.json();
-        const plan: PlanDetail = data.plan;
-        setEditing({ id: plan.id, name: plan.name, exercises: plan.exercises });
+        setDetailPlan(data.plan as PlanDetail);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erro ao abrir o plano.");
       }
     },
     [request],
   );
+
+  // Detalhe → "Começar treino" → tela de preparação → player
+  const onStartPlan = useCallback((plan: PlanDetail) => {
+    setDetailPlan(null);
+    setPreparing({
+      message: "Estamos preparando seu plano...",
+      icon: "barbell",
+      plan,
+    });
+  }, []);
+
+  // Setup do HIIT → "Iniciar" → preparação → player de cardio.
+  // Durante os 5s de preparação, resolve as imagens do catálogo em paralelo.
+  const onStartHiit = useCallback(
+    (script: HiitSegment[]) => {
+      setHiitSetup(false);
+      setPreparing({
+        message: "Preparando seu treino de cardio...",
+        icon: "flame",
+        script,
+      });
+      resolveHiitImages(script, request)
+        .then((enriched) =>
+          setPreparing((p) => (p ? { ...p, script: enriched } : p)),
+        )
+        .catch(() => {
+          /* mantém os ícones como fallback */
+        });
+    },
+    [request],
+  );
+
+  // Fim da preparação: lança o player certo
+  const onPreparingDone = useCallback(() => {
+    setPreparing((p) => {
+      if (p?.plan) setRunningPlan(p.plan);
+      if (p?.script) setHiitScript(p.script);
+      return null;
+    });
+  }, []);
 
   const onDelete = useCallback(
     (plan: PlanSummary) => {
@@ -129,7 +189,7 @@ const WorkoutsScreen = () => {
     [request, loadList],
   );
 
-  // ─── Modo edição ────────────────────────────────────────────────────────────
+  // ─── Modos de tela cheia (ordem importa) ────────────────────────────────────
   if (editing) {
     return (
       <PlanEditor
@@ -139,6 +199,70 @@ const WorkoutsScreen = () => {
           loadList();
         }}
         onCancel={() => setEditing(null)}
+      />
+    );
+  }
+
+  // Modos de treino imersivos: vão num Modal full-screen, que cobre a barra
+  // de abas e todo o chrome → evita toques acidentais durante o treino.
+  if (preparing) {
+    return (
+      <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setPreparing(null)}>
+        <SafeAreaProvider>
+          <PreparingScreen
+            message={preparing.message}
+            icon={preparing.icon}
+            onDone={onPreparingDone}
+          />
+        </SafeAreaProvider>
+      </Modal>
+    );
+  }
+
+  if (runningPlan) {
+    return (
+      <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setRunningPlan(null)}>
+        <SafeAreaProvider>
+          <WorkoutPlayer plan={runningPlan} onExit={() => setRunningPlan(null)} />
+        </SafeAreaProvider>
+      </Modal>
+    );
+  }
+
+  if (hiitScript) {
+    return (
+      <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setHiitScript(null)}>
+        <SafeAreaProvider>
+          <HiitPlayer script={hiitScript} onExit={() => setHiitScript(null)} />
+        </SafeAreaProvider>
+      </Modal>
+    );
+  }
+
+  if (hiitSetup) {
+    return (
+      <Modal visible animationType="slide" statusBarTranslucent onRequestClose={() => setHiitSetup(false)}>
+        <SafeAreaProvider>
+          <HiitSetup onStart={onStartHiit} onBack={() => setHiitSetup(false)} />
+        </SafeAreaProvider>
+      </Modal>
+    );
+  }
+
+  if (detailPlan) {
+    return (
+      <PlanDetailView
+        plan={detailPlan}
+        onStart={() => onStartPlan(detailPlan)}
+        onEdit={() => {
+          setEditing({
+            id: detailPlan.id,
+            name: detailPlan.name,
+            exercises: detailPlan.exercises,
+          });
+          setDetailPlan(null);
+        }}
+        onBack={() => setDetailPlan(null)}
       />
     );
   }
@@ -219,6 +343,26 @@ const WorkoutsScreen = () => {
               </View>
             )
           )}
+
+          {/* Cardio HIIT — disponível para todos */}
+          <TouchableOpacity
+            style={styles.hiitCard}
+            onPress={() => setHiitSetup(true)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.hiitIcon}>
+              <Ionicons name="flame" size={24} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.hiitTitle}>Cardio HIIT</Text>
+              <Text style={styles.hiitSub}>
+                Treino rápido de 10 a 30 min, sem equipamento
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
+          <Text style={styles.sectionLabel}>Meus planos</Text>
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
@@ -343,6 +487,43 @@ const createStyles = (colors: typeof lightColors) =>
       marginLeft: 6,
     },
     disabled: { opacity: 0.7 },
+
+    hiitCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      marginBottom: 20,
+    },
+    hiitIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+    },
+    hiitTitle: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 15,
+      color: colors.text.primary,
+    },
+    hiitSub: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 12,
+      color: colors.text.tertiary,
+      marginTop: 2,
+    },
+    sectionLabel: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 14,
+      color: colors.text.secondary,
+      marginBottom: 12,
+    },
 
     lockBox: {
       flexDirection: "row",

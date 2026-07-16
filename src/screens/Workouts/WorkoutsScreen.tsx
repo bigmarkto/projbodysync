@@ -28,7 +28,7 @@ import PreparingScreen from "./PreparingScreen";
 import WorkoutPlayer from "./WorkoutPlayer";
 import HiitSetup from "./HiitSetup";
 import HiitPlayer from "./HiitPlayer";
-import { HiitSegment, resolveHiitImages } from "./hiit";
+import { HiitSegment } from "./hiit";
 
 const SUB_LABELS: Record<string, string> = {
   free: "Free",
@@ -167,20 +167,11 @@ const WorkoutsScreen = () => {
     setRunningPlan(plan);
   }, []);
 
-  // Setup do HIIT → "Iniciar" → vai direto ao player.
-  // As imagens do catálogo são resolvidas em segundo plano e entram no player.
-  const onStartHiit = useCallback(
-    (script: HiitSegment[]) => {
-      setHiitSetup(false);
-      setHiitScript(script);
-      resolveHiitImages(script, request)
-        .then((enriched) => setHiitScript((cur) => (cur ? enriched : cur)))
-        .catch(() => {
-          /* mantém os ícones como fallback */
-        });
-    },
-    [request],
-  );
+  // Setup do HIIT → "Iniciar" → vai direto ao player de cardio
+  const onStartHiit = useCallback((script: HiitSegment[]) => {
+    setHiitSetup(false);
+    setHiitScript(script);
+  }, []);
 
   const onDelete = useCallback(
     (plan: PlanSummary) => {

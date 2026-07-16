@@ -42,8 +42,9 @@ const HiitSetup = ({ onStart, onBack }: Props) => {
         </View>
         <Text style={styles.title}>Treino de cardio roteirizado</Text>
         <Text style={styles.desc}>
-          Exercícios simples de 1 minuto, sem equipamento, com descanso de 1 minuto
-          a cada 5 minutos de treino.
+          Sequência de calistenia: aquecimento, exercícios de 1 minuto alternando
+          grupos musculares e alongamento no fim — tudo sem equipamento, com 1
+          minuto de descanso a cada 5 minutos.
         </Text>
 
         <Text style={styles.label}>Duração do treino</Text>

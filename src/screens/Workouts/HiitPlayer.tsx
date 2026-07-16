@@ -7,13 +7,8 @@ import {
   Alert,
   Animated,
   Easing,
-  Image,
-  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
-// Quadrado grande para exibir bem a ilustração do exercício
-const SHOWCASE = Math.min(Dimensions.get("window").width * 0.72, 300);
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../context/ThemeProvider";
 import { lightColors } from "../../theme/colors";
@@ -154,33 +149,27 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
             transform: [{ translateY }],
           }}
         >
-          <Text style={styles.phaseLabel}>
-            {isWork ? "AGORA" : "DESCANSE"}
-          </Text>
+          <Text style={styles.phaseLabel}>{isWork ? "AGORA" : "DESCANSE"}</Text>
 
           <View style={styles.exIconWrap}>
-            {isWork && segment.exercise!.imageUrl ? (
-              <Image
-                source={{ uri: segment.exercise!.imageUrl! }}
-                style={styles.exImage}
-              />
-            ) : (
-              <Ionicons
-                name={isWork ? segment.exercise!.icon : "cafe"}
-                size={72}
-                color="#FFFFFF"
-              />
-            )}
+            <Ionicons
+              name={isWork ? segment.exercise!.icon : "cafe"}
+              size={40}
+              color="#FFFFFF"
+            />
           </View>
 
           <Text style={styles.exName}>
             {isWork ? segment.exercise!.name : "Respire e recupere"}
           </Text>
-          {isWork && (
-            <Text style={styles.exInstruction}>
-              {segment.exercise!.instruction}
+
+          <View style={styles.instructionBox}>
+            <Text style={styles.instruction}>
+              {isWork
+                ? segment.exercise!.instruction
+                : "Fique de pé, respire fundo e relaxe. Beba um gole de água se precisar. Prepare-se para o próximo exercício."}
             </Text>
-          )}
+          </View>
         </Animated.View>
 
         <Text style={styles.timer}>{fmt(secondsLeft)}</Text>
@@ -192,8 +181,7 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
 
         {!!next && (
           <Text style={styles.nextUp}>
-            A seguir:{" "}
-            {next.type === "work" ? next.exercise!.name : "Descanso"}
+            A seguir: {next.type === "work" ? next.exercise!.name : "Descanso"}
           </Text>
         )}
       </View>
@@ -234,45 +222,45 @@ const createStyles = (colors: typeof lightColors) =>
     body: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
     phaseLabel: {
       fontFamily: "Poppins_600SemiBold",
-      fontSize: 15,
+      fontSize: 14,
       color: "rgba(255,255,255,0.85)",
       letterSpacing: 3,
-      marginBottom: 24,
+      marginBottom: 16,
     },
     exIconWrap: {
-      width: SHOWCASE,
-      height: SHOWCASE,
-      borderRadius: 28,
+      width: 76,
+      height: 76,
+      borderRadius: 22,
       backgroundColor: "rgba(255,255,255,0.2)",
       alignItems: "center",
       justifyContent: "center",
-      overflow: "hidden",
-      marginBottom: 20,
-    },
-    exImage: {
-      width: "100%",
-      height: "100%",
-      resizeMode: "contain",
-      backgroundColor: "#FFFFFF",
+      marginBottom: 14,
     },
     exName: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 28,
+      fontSize: 26,
       color: "#FFFFFF",
       textAlign: "center",
+      marginBottom: 12,
     },
-    exInstruction: {
+    instructionBox: {
+      backgroundColor: "rgba(255,255,255,0.15)",
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+    },
+    instruction: {
       fontFamily: "Poppins_400Regular",
       fontSize: 15,
-      color: "rgba(255,255,255,0.9)",
+      lineHeight: 22,
+      color: "#FFFFFF",
       textAlign: "center",
-      marginTop: 6,
     },
     timer: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 64,
+      fontSize: 56,
       color: "#FFFFFF",
-      marginTop: 12,
+      marginTop: 20,
     },
     segTrack: {
       width: "100%",

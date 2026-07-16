@@ -30,14 +30,6 @@ import HiitSetup from "./HiitSetup";
 import HiitPlayer from "./HiitPlayer";
 import { HiitSegment, resolveHiitImages } from "./hiit";
 
-// O que a tela de preparação vai lançar ao terminar
-interface Preparing {
-  message: string;
-  icon: "barbell" | "flame";
-  plan?: PlanDetail;
-  script?: HiitSegment[];
-}
-
 const SUB_LABELS: Record<string, string> = {
   free: "Free",
   basic: "Basic",
@@ -55,14 +47,18 @@ const WorkoutsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
 
   const [editing, setEditing] = useState<EditablePlan | null>(null);
   const [detailPlan, setDetailPlan] = useState<PlanDetail | null>(null);
-  const [preparing, setPreparing] = useState<Preparing | null>(null);
   const [runningPlan, setRunningPlan] = useState<PlanDetail | null>(null);
   const [hiitSetup, setHiitSetup] = useState(false);
   const [hiitScript, setHiitScript] = useState<HiitSegment[] | null>(null);
+
+  // Geração de plano por IA (tela de carregamento animada)
+  const [genPreparing, setGenPreparing] = useState(false);
+  const [genDraft, setGenDraft] = useState<PlanDraft | null>(null);
+  const [genErr, setGenErr] = useState<string | null>(null);
+  const [genMinElapsed, setGenMinElapsed] = useState(false);
 
   const loadList = useCallback(async () => {
     setError(null);
@@ -92,25 +88,63 @@ const WorkoutsScreen = () => {
 
   // Gera rascunho com a "IA" e abre no editor
   const onGenerate = useCallback(async () => {
-    if (generating) return;
-    setGenerating(true);
+    if (genPreparing) return;
+    // Abre a tela de carregamento animada e gera o plano em paralelo
     setError(null);
-    try {
-      const res = await request("/workouts/generate", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Não foi possível gerar o plano.");
-      const draft: PlanDraft = data.draft;
-      setEditing({ id: null, name: draft.name, exercises: draft.exercises });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao gerar o plano.");
-    } finally {
-      setGenerating(false);
+    setGenErr(null);
+    setGenDraft(null);
+    setGenMinElapsed(false);
+    setGenPreparing(true);
+
+    request("/workouts/generate", { method: "POST" })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok)
+          throw new Error(data.error || "Não foi possível gerar o plano.");
+        setGenDraft(data.draft as PlanDraft);
+      })
+      .catch((e) =>
+        setGenErr(e instanceof Error ? e.message : "Erro ao gerar o plano."),
+      );
+  }, [genPreparing, request]);
+
+  // Encerra a preparação quando: passaram os 5s E o rascunho chegou (ou falhou)
+  useEffect(() => {
+    if (!genPreparing || !genMinElapsed) return;
+    if (genErr) {
+      setGenPreparing(false);
+      setError(genErr);
+      return;
     }
-  }, [generating, request]);
+    if (genDraft) {
+      setGenPreparing(false);
+      setEditing({ id: null, name: genDraft.name, exercises: genDraft.exercises });
+    }
+    // senão: 5s já passaram mas a geração ainda não voltou — aguarda
+  }, [genPreparing, genMinElapsed, genErr, genDraft]);
 
   const onCreateManual = useCallback(() => {
     setEditing({ id: null, name: "", exercises: [] });
   }, []);
+
+  // Grava a sessão concluída (para as estatísticas). Silencioso em caso de falha.
+  const recordSession = useCallback(
+    async (planId: number | null, startedAt: string) => {
+      try {
+        await request("/sessions", {
+          method: "POST",
+          body: JSON.stringify({
+            planId,
+            startedAt,
+            finishedAt: new Date().toISOString(),
+          }),
+        });
+      } catch {
+        /* não bloqueia a experiência do usuário */
+      }
+    },
+    [request],
+  );
 
   // Abre o detalhe do plano (com o botão "Começar treino")
   const onOpenPlan = useCallback(
@@ -127,45 +161,26 @@ const WorkoutsScreen = () => {
     [request],
   );
 
-  // Detalhe → "Começar treino" → tela de preparação → player
+  // Detalhe → "Começar treino" → vai direto ao player (sem carregamento)
   const onStartPlan = useCallback((plan: PlanDetail) => {
     setDetailPlan(null);
-    setPreparing({
-      message: "Estamos preparando seu plano...",
-      icon: "barbell",
-      plan,
-    });
+    setRunningPlan(plan);
   }, []);
 
-  // Setup do HIIT → "Iniciar" → preparação → player de cardio.
-  // Durante os 5s de preparação, resolve as imagens do catálogo em paralelo.
+  // Setup do HIIT → "Iniciar" → vai direto ao player.
+  // As imagens do catálogo são resolvidas em segundo plano e entram no player.
   const onStartHiit = useCallback(
     (script: HiitSegment[]) => {
       setHiitSetup(false);
-      setPreparing({
-        message: "Preparando seu treino de cardio...",
-        icon: "flame",
-        script,
-      });
+      setHiitScript(script);
       resolveHiitImages(script, request)
-        .then((enriched) =>
-          setPreparing((p) => (p ? { ...p, script: enriched } : p)),
-        )
+        .then((enriched) => setHiitScript((cur) => (cur ? enriched : cur)))
         .catch(() => {
           /* mantém os ícones como fallback */
         });
     },
     [request],
   );
-
-  // Fim da preparação: lança o player certo
-  const onPreparingDone = useCallback(() => {
-    setPreparing((p) => {
-      if (p?.plan) setRunningPlan(p.plan);
-      if (p?.script) setHiitScript(p.script);
-      return null;
-    });
-  }, []);
 
   const onDelete = useCallback(
     (plan: PlanSummary) => {
@@ -203,27 +218,32 @@ const WorkoutsScreen = () => {
     );
   }
 
-  // Modos de treino imersivos: vão num Modal full-screen, que cobre a barra
-  // de abas e todo o chrome → evita toques acidentais durante o treino.
-  if (preparing) {
+  // Tela de carregamento animada — apenas para a GERAÇÃO do plano por IA
+  if (genPreparing) {
     return (
-      <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setPreparing(null)}>
+      <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setGenPreparing(false)}>
         <SafeAreaProvider>
           <PreparingScreen
-            message={preparing.message}
-            icon={preparing.icon}
-            onDone={onPreparingDone}
+            message="Estamos preparando seu plano..."
+            icon="barbell"
+            onDone={() => setGenMinElapsed(true)}
           />
         </SafeAreaProvider>
       </Modal>
     );
   }
 
+  // Modos de treino imersivos: vão num Modal full-screen, que cobre a barra
+  // de abas e todo o chrome → evita toques acidentais durante o treino.
   if (runningPlan) {
     return (
       <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setRunningPlan(null)}>
         <SafeAreaProvider>
-          <WorkoutPlayer plan={runningPlan} onExit={() => setRunningPlan(null)} />
+          <WorkoutPlayer
+            plan={runningPlan}
+            onExit={() => setRunningPlan(null)}
+            onCompleted={(startedAt) => recordSession(runningPlan.id, startedAt)}
+          />
         </SafeAreaProvider>
       </Modal>
     );
@@ -233,7 +253,11 @@ const WorkoutsScreen = () => {
     return (
       <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setHiitScript(null)}>
         <SafeAreaProvider>
-          <HiitPlayer script={hiitScript} onExit={() => setHiitScript(null)} />
+          <HiitPlayer
+            script={hiitScript}
+            onExit={() => setHiitScript(null)}
+            onCompleted={(startedAt) => recordSession(null, startedAt)}
+          />
         </SafeAreaProvider>
       </Modal>
     );
@@ -316,19 +340,12 @@ const WorkoutsScreen = () => {
           {canCreate ? (
             <View style={styles.actions}>
               <TouchableOpacity
-                style={[styles.aiBtn, generating && styles.disabled]}
+                style={styles.aiBtn}
                 onPress={onGenerate}
-                disabled={generating}
                 activeOpacity={0.85}
               >
-                {generating ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="sparkles" size={18} color="#FFFFFF" />
-                    <Text style={styles.aiBtnText}>Gerar plano com IA</Text>
-                  </>
-                )}
+                <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+                <Text style={styles.aiBtnText}>Gerar plano com IA</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.manualBtn} onPress={onCreateManual} activeOpacity={0.85}>
                 <Ionicons name="add" size={18} color={colors.primary} />

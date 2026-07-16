@@ -6,6 +6,8 @@ import { userProfileRoutes } from './modules/user-profile/user-profile.routes'
 import { hydrationRoutes } from './modules/hydration/hydration.routes'
 import { exerciseRoutes } from './modules/exercise/exercise.routes'
 import { workoutRoutes } from './modules/workout/workout.routes'
+import { sessionRoutes } from './modules/session/session.routes'
+import { measurementRoutes } from './modules/measurement/measurement.routes'
 import { paymentRoutes } from './modules/payment/payment.routes'
 
 const app = express()
@@ -26,6 +28,12 @@ app.use('/api/exercises', exerciseRoutes)
 
 // Rotas de Planos de Treino
 app.use('/api/workouts', workoutRoutes)
+
+// Rotas de Sessões de Treino (registro + estatísticas)
+app.use('/api/sessions', sessionRoutes)
+
+// Rotas de Medições (ganhos + metas de peso)
+app.use('/api/measurements', measurementRoutes)
 
 // Rota de Pagamento
 app.use('/api/payment', paymentRoutes)

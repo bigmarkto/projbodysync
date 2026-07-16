@@ -747,7 +747,81 @@ O fluxo de recuperação funciona em **3 etapas**:
 
 ---
 
-> **Sessões de treino** (`workout_sessions` / `session_logs`) são o próximo módulo natural — registrar treinos concluídos alimentará o contador "treinos esta semana" e os checkmarks no dashboard.
+---
+
+## 📈 Sessões de Treino (`/sessions`)
+
+**⚠️ Todas as rotas exigem autenticação.**
+
+### 1. POST `/sessions`
+**Descrição:** Registra uma sessão de treino concluída (chamada pelo app ao finalizar um treino/cardio).
+
+**Enviar (JSON):**
+```json
+{ "planId": 3, "startedAt": "2026-07-16T10:00:00.000Z", "finishedAt": "2026-07-16T10:40:00.000Z" }
+```
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `planId` | number \| null | Plano executado (`null` para Cardio HIIT) |
+| `startedAt` | string ISO | **Obrigatório** |
+| `finishedAt` | string ISO | Opcional (padrão: agora) |
+
+**Retorno (201):** `{ "id": 12 }`
+
+### 2. GET `/sessions/stats`
+**Descrição:** Estatísticas de treino do usuário.
+
+**Retorno (200 OK):**
+```json
+{
+  "total": 24,
+  "thisWeek": 3,
+  "streak": 5,
+  "avgDurationMin": 38,
+  "adherencePct": 80,
+  "scheduledPerWeek": 3,
+  "week": [
+    { "date": "2026-07-12", "weekday": 0, "label": "Dom", "scheduled": false, "done": false, "missed": false, "isToday": false, "isFuture": false }
+  ]
+}
+```
+- `streak`: dias agendados consecutivos cumpridos · `adherencePct`: % dos agendados feitos (30 dias) · `week`: cada dia com `done`/`missed` para o gráfico semanal.
+
+---
+
+## ⚖️ Medições & Metas (`/measurements`)
+
+**⚠️ Todas as rotas exigem autenticação.**
+
+### 1. POST `/measurements`
+**Descrição:** Registra um peso (e sincroniza o peso atual do perfil).
+
+**Enviar (JSON):** `{ "weightKg": 74.5, "measuredAt": "2026-07-16" }` (`measuredAt` opcional, padrão hoje)
+
+**Retorno (201):** `{ "measurement": { "id": 5, "weightKg": 74.5, "measuredAt": "2026-07-16" } }`
+
+**Erros:** `400` Peso inválido (fora de 0–500)
+
+### 2. GET `/measurements/summary`
+**Descrição:** Progresso rumo à meta + histórico.
+
+**Retorno (200 OK):**
+```json
+{
+  "current": 74.5, "start": 78.0, "goal": 72.0,
+  "deltaFromStart": -3.5, "remainingToGoal": 2.5, "progressPct": 58,
+  "history": [{ "id": 1, "weightKg": 78.0, "measuredAt": "2026-06-01" }]
+}
+```
+
+### 3. PUT `/measurements/goal`
+**Descrição:** Define a meta de peso (`desired_weight_kg` do perfil).
+
+**Enviar (JSON):** `{ "desiredWeightKg": 72 }`
+
+**Retorno (200 OK):** mesmo formato do summary.
+
+**Erros:** `400` Meta inválida
 
 ---
 

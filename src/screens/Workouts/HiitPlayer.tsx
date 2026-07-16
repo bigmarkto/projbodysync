@@ -22,6 +22,7 @@ import { HiitSegment } from "./hiit";
 interface Props {
   script: HiitSegment[];
   onExit: () => void;
+  onCompleted?: (startedAt: string) => void;
 }
 
 const fmt = (s: number) => {
@@ -30,7 +31,7 @@ const fmt = (s: number) => {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 };
 
-const HiitPlayer = ({ script, onExit }: Props) => {
+const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -66,6 +67,16 @@ const HiitPlayer = ({ script, onExit }: Props) => {
     const id = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(id);
   }, [secondsLeft, paused, finished]);
+
+  // Registra a sessão uma única vez ao concluir
+  const startedAt = useRef(new Date().toISOString());
+  const reported = useRef(false);
+  useEffect(() => {
+    if (finished && !reported.current) {
+      reported.current = true;
+      onCompleted?.(startedAt.current);
+    }
+  }, [finished, onCompleted]);
 
   // Avança de segmento quando o tempo zera
   useEffect(() => {

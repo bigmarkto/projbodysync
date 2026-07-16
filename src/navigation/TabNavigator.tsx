@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Dimensions, Text, TouchableOpacity } from "react-native";
 import { TabView, SceneMap } from "react-native-tab-view";
 import { useTheme } from "../context/ThemeProvider";
-import { HomeScreen, WorkoutsScreen, SettingsScreen } from "../screens";
+import { HomeScreen, WorkoutsScreen, ProgressScreen, SettingsScreen } from "../screens";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,12 +16,14 @@ const TabNavigator = () => {
   const [routes] = useState([
     { key: "home", title: "Home", icon: "home" },
     { key: "workouts", title: "Exercícios", icon: "barbell" },
+    { key: "progress", title: "Progresso", icon: "stats-chart" },
     { key: "settings", title: "Configurações", icon: "settings" },
   ]);
 
   const renderScene = SceneMap({
     home: HomeScreen,
     workouts: WorkoutsScreen,
+    progress: ProgressScreen,
     settings: SettingsScreen,
   });
 
@@ -29,6 +31,7 @@ const TabNavigator = () => {
     const iconMap: Record<string, string> = {
       home: focused ? "home" : "home-outline",
       workouts: focused ? "barbell" : "barbell-outline",
+      progress: focused ? "stats-chart" : "stats-chart-outline",
       settings: focused ? "settings" : "settings-outline",
     };
     return iconMap[key] as keyof typeof Ionicons.glyphMap;
@@ -74,8 +77,9 @@ const TabNavigator = () => {
                 color={color}
               />
               <Text
+                numberOfLines={1}
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
                   fontFamily: "Poppins_500Medium",
                   color: color,
                   marginTop: 4,

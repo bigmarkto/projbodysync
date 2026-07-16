@@ -19,12 +19,13 @@ import { PlanDetail, PlanExercise } from "./types";
 interface Props {
   plan: PlanDetail;
   onExit: () => void;
+  onCompleted?: (startedAt: string) => void;
 }
 
 const REST_BETWEEN_SETS = 45;
 const REST_BETWEEN_EXERCISES = 60;
 
-const WorkoutPlayer = ({ plan, onExit }: Props) => {
+const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -43,6 +44,16 @@ const WorkoutPlayer = ({ plan, onExit }: Props) => {
   const [completedSets, setCompletedSets] = useState(0);
 
   const current: PlanExercise | undefined = exercises[exIndex];
+
+  // Registra a sessão uma única vez ao concluir
+  const startedAt = useRef(new Date().toISOString());
+  const reported = useRef(false);
+  useEffect(() => {
+    if (phase === "done" && !reported.current) {
+      reported.current = true;
+      onCompleted?.(startedAt.current);
+    }
+  }, [phase, onCompleted]);
 
   // Fade-in a cada troca de exercício
   const fade = useRef(new Animated.Value(1)).current;

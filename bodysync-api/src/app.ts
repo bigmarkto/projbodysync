@@ -12,6 +12,35 @@ import { paymentRoutes } from './modules/payment/payment.routes'
 
 const app = express()
 
+const allowedOrigins = [
+  'http://localhost:8081',
+  'http://127.0.0.1:8081',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+]
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin
+
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Vary', 'Origin')
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS')
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+  )
+
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204)
+    return
+  }
+
+  next()
+})
+
 app.use(express.json())
 
 // Rotas de Autenticação

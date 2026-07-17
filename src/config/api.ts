@@ -6,4 +6,4 @@
  * 2. Substitua o IP abaixo pelo seu IP real.
  * 3. O celular e o computador DEVEM estar na mesma rede Wi-Fi.
  */
-export const API_URL = 'http://192.168.68.100:3000/api' // <-- MUDE O IP AQUI
+export const API_URL = 'http://localhost:3000/api' // <-- MUDE O IP AQUI

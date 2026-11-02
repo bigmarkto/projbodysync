@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { API_URL } from "@/config/api";
 
+const REQUEST_TIMEOUT_MS = 10000;
+
 export const useApi = () => {
   const { accessToken, logout, refreshSession } = useAuth();
 
@@ -13,10 +15,28 @@ export const useApi = () => {
         ...((options.headers as Record<string, string>) || {}),
       });
 
-      let response = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers: buildHeaders(accessToken),
-      });
+      const fetchWithTimeout = async (token: string | null) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        const signal = options.signal ?? controller.signal;
+
+        try {
+          return await fetch(`${API_URL}${path}`, {
+            ...options,
+            signal,
+            headers: buildHeaders(token),
+          });
+        } catch (err: any) {
+          if (err?.name === "AbortError") {
+            throw new Error("O servidor demorou para responder. Verifique sua conexão.");
+          }
+          throw err;
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      let response = await fetchWithTimeout(accessToken);
 
       if (response.status === 401) {
         const renewedToken = await refreshSession();
@@ -24,10 +44,7 @@ export const useApi = () => {
           await logout();
           throw new Error("Sessão expirada. Faça login novamente.");
         }
-        response = await fetch(`${API_URL}${path}`, {
-          ...options,
-          headers: buildHeaders(renewedToken),
-        });
+        response = await fetchWithTimeout(renewedToken);
       }
 
       return response;

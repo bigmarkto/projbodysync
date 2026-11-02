@@ -57,7 +57,24 @@ const HydrationCard = () => {
 
   const addIntake = useCallback(
     async (amountMl: number) => {
-      if (busy) return;
+      if (busy || !status) return;
+      const previousStatus = status;
+
+      // Optimistic update local imediato (0ms de latência percebida)
+      const optimisticConsumed = Math.max(0, status.consumedMl + amountMl);
+      const optimisticPct = status.goalMl > 0 ? Math.round((optimisticConsumed / status.goalMl) * 100) : 0;
+      const optimisticCups = Math.max(0, Math.round(optimisticConsumed / status.cupSizeMl));
+
+      setStatus({
+        ...status,
+        consumedMl: optimisticConsumed,
+        percentage: optimisticPct,
+        cups: {
+          ...status.cups,
+          consumed: Math.min(status.cups.total, optimisticCups),
+        },
+      });
+
       setBusy(true);
       setError(null);
       try {
@@ -68,12 +85,14 @@ const HydrationCard = () => {
         if (!res.ok) throw new Error("Não foi possível registrar.");
         setStatus(await res.json());
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao registrar.");
+        // Rollback se falhar
+        setStatus(previousStatus);
+        setError(e instanceof Error ? e.message : "Erro ao registrar consumo.");
       } finally {
         setBusy(false);
       }
     },
-    [busy, request],
+    [busy, status, request],
   );
 
   const saveGoal = useCallback(

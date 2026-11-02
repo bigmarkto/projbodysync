@@ -15,6 +15,7 @@ import { useTheme } from "../context/ThemeProvider";
 import { useApi } from "../hooks/useApi";
 import { lightColors } from "../theme/colors";
 import HydrationCard from "../components/HydrationCard";
+import { HomeSkeleton } from "../components/Skeleton";
 
 interface WorkoutSchedule {
   days: boolean[];
@@ -125,10 +126,8 @@ const HomeScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.screen}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <HomeSkeleton />
       </View>
     );
   }

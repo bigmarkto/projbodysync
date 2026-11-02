@@ -8,6 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "seed": "tsx src/scripts/seed-wger.ts",
     "translate": "tsx src/scripts/translate-exercises.ts",
+    "migrate": "tsx src/scripts/run-migration.ts",
     "build": "tsc",
     "start": "node dist/server.js"
   },

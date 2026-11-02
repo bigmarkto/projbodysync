@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import express from 'express'
+import compression from 'compression'
 import { errorMiddleware } from './middleware/error.middleware'
 import { authRoutes } from './modules/auth/auth.routes'
 import { userProfileRoutes } from './modules/user-profile/user-profile.routes'
@@ -37,6 +38,7 @@ app.use((req, res, next) => {
   next()
 })
 
+app.use(compression())
 app.use(express.json())
 
 // Rotas de Autenticação
@@ -60,10 +62,10 @@ app.use('/api/sessions', sessionRoutes)
 // Rotas de Medições (ganhos + metas de peso)
 app.use('/api/measurements', measurementRoutes)
 
-// Rota de Pagamento
+// Rotas de Pagamento / Assinatura (mock)
 app.use('/api/payment', paymentRoutes)
 
-// Handler global de erros — sempre o último middleware
+// Middleware global de tratamento de erros
 app.use(errorMiddleware)
 
 export default app

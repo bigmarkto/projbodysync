@@ -12,17 +12,13 @@ import { paymentRoutes } from './modules/payment/payment.routes'
 
 const app = express()
 
-const allowedOrigins = [
-  'http://localhost:8081',
-  'http://127.0.0.1:8081',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-]
+const localOriginRegex =
+  /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/
 
 app.use((req, res, next) => {
   const origin = req.headers.origin
 
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && localOriginRegex.test(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin)
     res.setHeader('Vary', 'Origin')
   }

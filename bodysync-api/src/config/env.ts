@@ -12,7 +12,7 @@ export const env = {
   PORT: process.env.PORT ?? '3000',
   DATABASE_URL: required('DATABASE_URL'),
   JWT_SECRET: required('JWT_SECRET'),
-  SUPABASE_URL: required('SUPABASE_URL'),
-  SUPABASE_KEY: required('SUPABASE_KEY'),
+  SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+  SUPABASE_KEY: process.env.SUPABASE_KEY ?? '',
   SUPABASE_BUCKET: process.env.SUPABASE_BUCKET ?? 'exercise-images',
 }

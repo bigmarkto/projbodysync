@@ -26,9 +26,9 @@ const REST_BETWEEN_SETS = 45;
 const REST_BETWEEN_EXERCISES = 60;
 
 const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const exercises = plan.exercises;
   const totalSets = useMemo(
@@ -61,14 +61,14 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
     fade.setValue(0);
     Animated.timing(fade, {
       toValue: 1,
-      duration: 400,
+      duration: 350,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [exIndex, fade]);
   const heroTranslate = fade.interpolate({
     inputRange: [0, 1],
-    outputRange: [16, 0],
+    outputRange: [14, 0],
   });
 
   // Contagem regressiva do descanso
@@ -135,14 +135,14 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
     return (
       <View style={[styles.container, styles.center]}>
         <View style={styles.doneCircle}>
-          <Ionicons name="checkmark" size={64} color="#FFFFFF" />
+          <Ionicons name="checkmark" size={60} color="#FFFFFF" />
         </View>
         <Text style={styles.doneTitle}>Treino concluído!</Text>
         <Text style={styles.doneSub}>
-          {exercises.length} exercícios · {completedSets} séries
+          {exercises.length} exercícios · {completedSets} séries realizadas
         </Text>
-        <TouchableOpacity style={styles.doneBtn} onPress={onExit}>
-          <Text style={styles.doneBtnText}>Voltar aos planos</Text>
+        <TouchableOpacity style={styles.doneBtn} onPress={onExit} activeOpacity={0.88}>
+          <Text style={styles.doneBtnText}>Finalizar e voltar</Text>
         </TouchableOpacity>
       </View>
     );
@@ -152,16 +152,25 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
   if (phase === "rest") {
     const nextLabel =
       restKind === "set"
-        ? `Próxima: série ${setNum + 1} de ${current?.sets}`
+        ? `Próxima: Série ${setNum + 1} de ${current?.sets}`
         : `Próximo: ${exercises[exIndex + 1]?.exercise?.name ?? "exercício"}`;
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Header onExit={confirmExit} styles={styles} title="Descanso" />
-        <View style={styles.center}>
-          <Text style={styles.restLabel}>DESCANSO</Text>
-          <Text style={styles.restTimer}>{restLeft}s</Text>
+        <Header onExit={confirmExit} styles={styles} title="Recuperação" />
+        <View style={styles.restCenter}>
+          <View style={styles.restBadge}>
+            <Ionicons name="timer-outline" size={16} color={colors.primary} />
+            <Text style={styles.restLabel}>DESCANSO ATIVO</Text>
+          </View>
+
+          <View style={styles.timerCircle}>
+            <Text style={styles.restTimer}>{restLeft}</Text>
+            <Text style={styles.restSec}>segundos</Text>
+          </View>
+
           <Text style={styles.restNext}>{nextLabel}</Text>
-          <TouchableOpacity style={styles.skipRestBtn} onPress={endRest}>
+
+          <TouchableOpacity style={styles.skipRestBtn} onPress={endRest} activeOpacity={0.8}>
             <Ionicons name="play-skip-forward" size={18} color={colors.primary} />
             <Text style={styles.skipRestText}>Pular descanso</Text>
           </TouchableOpacity>
@@ -179,11 +188,12 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
         title={`Exercício ${exIndex + 1} de ${exercises.length}`}
       />
 
+      {/* Progress Track */}
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.View
           style={{
             width: "100%",
@@ -204,17 +214,20 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
             {current?.exercise?.name ?? `Exercício #${current?.exerciseId}`}
           </Text>
           {!!current?.exercise?.category && (
-            <Text style={styles.exCat}>{current.exercise.category}</Text>
+            <View style={styles.categoryChip}>
+              <Text style={styles.exCat}>{current.exercise.category}</Text>
+            </View>
           )}
         </Animated.View>
 
+        {/* Metrics Grid */}
         <View style={styles.metrics}>
           <View style={styles.metricBox}>
             <Text style={styles.metricValue}>
               {setNum}
               <Text style={styles.metricTotal}>/{current?.sets}</Text>
             </Text>
-            <Text style={styles.metricLabel}>Série</Text>
+            <Text style={styles.metricLabel}>Série atual</Text>
           </View>
           <View style={styles.metricBox}>
             <Text style={styles.metricValue}>{current?.reps}</Text>
@@ -223,12 +236,13 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity style={styles.skipBtn} onPress={skipExercise}>
-          <Ionicons name="play-skip-forward-outline" size={20} color={colors.text.secondary} />
+      {/* Bottom Sticky Controls */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
+        <TouchableOpacity style={styles.skipBtn} onPress={skipExercise} activeOpacity={0.8}>
+          <Ionicons name="play-skip-forward-outline" size={22} color={colors.text.secondary} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.doneSetBtn} onPress={finishSet}>
-          <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+        <TouchableOpacity style={styles.doneSetBtn} onPress={finishSet} activeOpacity={0.88}>
+          <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
           <Text style={styles.doneSetText}>Concluir série</Text>
         </TouchableOpacity>
       </View>
@@ -247,25 +261,34 @@ const Header = ({
   styles: ReturnType<typeof createStyles>;
 }) => (
   <View style={styles.header}>
-    <TouchableOpacity onPress={onExit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-      <Ionicons name="close" size={26} color={styles._closeColor.color} />
+    <TouchableOpacity onPress={onExit} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.closeBtn}>
+      <Ionicons name="close" size={22} color={styles._closeColor.color} />
     </TouchableOpacity>
     <Text style={styles.headerTitle}>{title}</Text>
-    <View style={{ width: 26 }} />
+    <View style={{ width: 38 }} />
   </View>
 );
 
-const createStyles = (colors: typeof lightColors) =>
+const createStyles = (colors: typeof lightColors, isDark: boolean) =>
   StyleSheet.create({
     _closeColor: { color: colors.text.primary },
     container: { flex: 1, backgroundColor: colors.background },
     center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+    restCenter: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: 16,
       paddingVertical: 12,
+    },
+    closeBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceVariant,
+      alignItems: "center",
+      justifyContent: "center",
     },
     headerTitle: {
       fontFamily: "Poppins_600SemiBold",
@@ -278,18 +301,26 @@ const createStyles = (colors: typeof lightColors) =>
       marginHorizontal: 16,
       borderRadius: 6,
       overflow: "hidden",
+      marginBottom: 10,
     },
     progressFill: { height: 6, backgroundColor: colors.primary, borderRadius: 6 },
     content: { padding: 20, alignItems: "center" },
     hero: {
       width: "100%",
       height: 220,
-      borderRadius: 20,
-      backgroundColor: colors.surfaceVariant,
+      borderRadius: 22,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
       alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
-      marginBottom: 20,
+      marginBottom: 18,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      elevation: 3,
     },
     heroImg: { width: "100%", height: "100%", resizeMode: "cover" },
     exName: {
@@ -298,22 +329,33 @@ const createStyles = (colors: typeof lightColors) =>
       color: colors.text.primary,
       textAlign: "center",
     },
-    exCat: {
-      fontFamily: "Poppins_400Regular",
-      fontSize: 14,
-      color: colors.text.tertiary,
-      marginTop: 2,
-      marginBottom: 24,
+    categoryChip: {
+      backgroundColor: colors.surfaceVariant,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 12,
+      marginTop: 6,
+      marginBottom: 20,
     },
-    metrics: { flexDirection: "row", gap: 16, width: "100%" },
+    exCat: {
+      fontFamily: "Poppins_500Medium",
+      fontSize: 12,
+      color: colors.text.secondary,
+    },
+    metrics: { flexDirection: "row", gap: 14, width: "100%" },
     metricBox: {
       flex: 1,
-      backgroundColor: colors.surface,
-      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: colors.border,
-      paddingVertical: 20,
+      paddingVertical: 18,
       alignItems: "center",
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      elevation: 2,
     },
     metricValue: {
       fontFamily: "Poppins_700Bold",
@@ -322,28 +364,32 @@ const createStyles = (colors: typeof lightColors) =>
     },
     metricTotal: {
       fontFamily: "Poppins_500Medium",
-      fontSize: 20,
+      fontSize: 18,
       color: colors.text.tertiary,
     },
     metricLabel: {
-      fontFamily: "Poppins_400Regular",
-      fontSize: 13,
+      fontFamily: "Poppins_500Medium",
+      fontSize: 12,
       color: colors.text.secondary,
-      marginTop: 4,
+      marginTop: 2,
     },
     footer: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 16,
+      paddingHorizontal: 18,
       paddingTop: 12,
       gap: 12,
+      backgroundColor: colors.background,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
     },
     skipBtn: {
-      width: 54,
-      height: 54,
-      borderRadius: 14,
+      width: 52,
+      height: 52,
+      borderRadius: 16,
       borderWidth: 1.5,
       borderColor: colors.border,
+      backgroundColor: colors.card,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -352,29 +398,66 @@ const createStyles = (colors: typeof lightColors) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      height: 54,
-      borderRadius: 14,
+      height: 52,
+      borderRadius: 16,
       backgroundColor: colors.primary,
+      gap: 8,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
     },
     doneSetText: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 16,
       color: "#FFFFFF",
-      marginLeft: 8,
     },
 
     // Descanso
+    restBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
+      gap: 6,
+      marginBottom: 24,
+    },
     restLabel: {
       fontFamily: "Poppins_600SemiBold",
-      fontSize: 15,
-      color: colors.text.tertiary,
-      letterSpacing: 2,
+      fontSize: 12,
+      color: colors.primary,
+      letterSpacing: 1,
+    },
+    timerCircle: {
+      width: 170,
+      height: 170,
+      borderRadius: 85,
+      backgroundColor: colors.card,
+      borderWidth: 4,
+      borderColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 24,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 14,
+      elevation: 6,
     },
     restTimer: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 72,
+      fontSize: 56,
       color: colors.primary,
-      marginVertical: 8,
+      lineHeight: 64,
+    },
+    restSec: {
+      fontFamily: "Poppins_500Medium",
+      fontSize: 13,
+      color: colors.text.tertiary,
+      marginTop: -4,
     },
     restNext: {
       fontFamily: "Poppins_500Medium",
@@ -386,28 +469,34 @@ const createStyles = (colors: typeof lightColors) =>
     skipRestBtn: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 20,
+      paddingHorizontal: 22,
       paddingVertical: 12,
-      borderRadius: 12,
+      borderRadius: 14,
       borderWidth: 1.5,
       borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+      gap: 8,
     },
     skipRestText: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 14,
       color: colors.primary,
-      marginLeft: 8,
     },
 
     // Conclusão
     doneCircle: {
-      width: 120,
-      height: 120,
-      borderRadius: 60,
+      width: 110,
+      height: 110,
+      borderRadius: 55,
       backgroundColor: colors.success,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 24,
+      marginBottom: 20,
+      shadowColor: colors.success,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 6,
     },
     doneTitle: {
       fontFamily: "Poppins_700Bold",
@@ -420,14 +509,20 @@ const createStyles = (colors: typeof lightColors) =>
       color: colors.text.secondary,
       marginTop: 6,
       marginBottom: 32,
+      textAlign: "center",
     },
     doneBtn: {
       height: 52,
-      paddingHorizontal: 32,
-      borderRadius: 14,
+      paddingHorizontal: 36,
+      borderRadius: 16,
       backgroundColor: colors.primary,
       alignItems: "center",
       justifyContent: "center",
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
     },
     doneBtnText: {
       fontFamily: "Poppins_600SemiBold",

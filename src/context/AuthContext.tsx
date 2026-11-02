@@ -4,10 +4,11 @@ import React, {
   useState,
   useEffect,
   useRef,
+  useCallback,
   ReactNode,
 } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { API_URL } from '../config/api' // ✅ IMPORTA A URL DE UM LUGAR SÓ
+import { API_URL } from '../config/api'
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: '@bodysync:accessToken',
@@ -15,7 +16,6 @@ const STORAGE_KEYS = {
   USER: '@bodysync:user',
 }
 
-// ✅ INTERFACE ATUALIZADA PARA BATER COM O BACKEND
 export interface User {
   id: string
   email: string
@@ -25,19 +25,19 @@ export interface User {
   weightKg: number
   gender: string
   fitnessGoal: string
-  role: 'comum' | 'admin' | 'professor' // ✅ NOVO
+  role: 'comum' | 'admin' | 'professor'
   experienceLevel: string | null
   activityLevel: string | null
   workoutFrequency: number | null
   lastWorkoutDate: string | null
-  subscriptionType: 'free' | 'basic' | 'premium' // ✅ NOVO
+  subscriptionType: 'free' | 'basic' | 'premium'
   desiredWeightKg: number | null
   hydrationReminder: boolean
   desiredModality: string | null
   workoutSchedule: {
     days: boolean[]
     time: string | null
-  } | null // ✅ NOVO
+  } | null
 }
 
 interface AuthState {
@@ -50,7 +50,7 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  refreshSession: () => Promise<boolean>
+  refreshSession: () => Promise<string | null>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -70,13 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   })
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const scheduleRefresh = (delayMs: number) => {
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-    refreshTimerRef.current = setTimeout(async () => {
-      await refreshSession()
-    }, delayMs)
-  }
+  const refreshPromiseRef = useRef<Promise<string | null> | null>(null)
 
   const parseTokenExpiry = (token: string): number => {
     try {
@@ -87,46 +81,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const refreshSession = async (): Promise<boolean> => {
-    try {
-      const storedRefresh = await AsyncStorage.getItem(
-        STORAGE_KEYS.REFRESH_TOKEN
-      )
-      if (!storedRefresh) return false
-
-      const response = await fetch(`${API_URL}/auth/refresh`, {
-        // ✅ USA A URL IMPORTADA
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: storedRefresh }),
-      })
-
-      if (!response.ok) {
-        await clearSession()
-        return false
-      }
-
-      const { accessToken, refreshToken } = await response.json()
-
-      await AsyncStorage.multiSet([
-        [STORAGE_KEYS.ACCESS_TOKEN, accessToken],
-        [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
-      ])
-
-      setState(prev => ({ ...prev, accessToken }))
-
-      const expiry = parseTokenExpiry(accessToken)
-      const refreshIn = expiry - Date.now() - 60_000
-      if (refreshIn > 0) scheduleRefresh(refreshIn)
-
-      return true
-    } catch {
-      await clearSession()
-      return false
-    }
-  }
-
-  const clearSession = async () => {
+  const clearSession = useCallback(async () => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.ACCESS_TOKEN,
@@ -139,7 +94,63 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isAuthenticated: false,
       isLoading: false,
     })
-  }
+  }, [])
+
+  const scheduleRefresh = useCallback((delayMs: number, fn: () => Promise<string | null>) => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    refreshTimerRef.current = setTimeout(async () => {
+      await fn()
+    }, delayMs)
+  }, [])
+
+  const refreshSession = useCallback(async (): Promise<string | null> => {
+    if (refreshPromiseRef.current) {
+      return refreshPromiseRef.current
+    }
+
+    const promise = (async (): Promise<string | null> => {
+      try {
+        const storedRefresh = await AsyncStorage.getItem(
+          STORAGE_KEYS.REFRESH_TOKEN
+        )
+        if (!storedRefresh) return null
+
+        const response = await fetch(`${API_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: storedRefresh }),
+        })
+
+        if (!response.ok) {
+          await clearSession()
+          return null
+        }
+
+        const { accessToken, refreshToken } = await response.json()
+
+        await AsyncStorage.multiSet([
+          [STORAGE_KEYS.ACCESS_TOKEN, accessToken],
+          [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
+        ])
+
+        setState(prev => ({ ...prev, accessToken }))
+
+        const expiry = parseTokenExpiry(accessToken)
+        const refreshIn = expiry - Date.now() - 60_000
+        if (refreshIn > 0) scheduleRefresh(refreshIn, refreshSession)
+
+        return accessToken
+      } catch {
+        await clearSession()
+        return null
+      } finally {
+        refreshPromiseRef.current = null
+      }
+    })()
+
+    refreshPromiseRef.current = promise
+    return promise
+  }, [clearSession, scheduleRefresh])
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -164,36 +175,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const isExpired = expiry <= Date.now()
 
         if (isExpired) {
-          const renewed = await (async () => {
-            try {
-              const response = await fetch(`${API_URL}/auth/refresh`, {
-                // ✅ USA A URL IMPORTADA
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refreshToken: refresh }),
-              })
-              if (!response.ok) return false
-              const data = await response.json()
-              await AsyncStorage.multiSet([
-                [STORAGE_KEYS.ACCESS_TOKEN, data.accessToken],
-                [STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken],
-              ])
-              setState({
-                user,
-                accessToken: data.accessToken,
-                isAuthenticated: true,
-                isLoading: false,
-              })
-              const newExpiry = parseTokenExpiry(data.accessToken)
-              const refreshIn = newExpiry - Date.now() - 60_000
-              if (refreshIn > 0) scheduleRefresh(refreshIn)
-              return true
-            } catch {
-              return false
-            }
-          })()
-
-          if (!renewed) await clearSession()
+          const newToken = await refreshSession()
+          if (newToken) {
+            setState({
+              user,
+              accessToken: newToken,
+              isAuthenticated: true,
+              isLoading: false,
+            })
+          }
           return
         }
 
@@ -205,7 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         })
 
         const refreshIn = expiry - Date.now() - 60_000
-        if (refreshIn > 0) scheduleRefresh(refreshIn)
+        if (refreshIn > 0) scheduleRefresh(refreshIn, refreshSession)
       } catch {
         setState(prev => ({ ...prev, isLoading: false }))
       }
@@ -216,11 +206,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     }
-  }, [])
+  }, [refreshSession, scheduleRefresh])
 
-  const login = async (email: string, password: string): Promise<void> => {
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
     const response = await fetch(`${API_URL}/auth/login`, {
-      // ✅ USA A URL IMPORTADA
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -249,17 +238,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const expiry = parseTokenExpiry(accessToken)
     const refreshIn = expiry - Date.now() - 60_000
-    if (refreshIn > 0) scheduleRefresh(refreshIn)
-  }
+    if (refreshIn > 0) scheduleRefresh(refreshIn, refreshSession)
+  }, [refreshSession, scheduleRefresh])
 
-  const logout = async (): Promise<void> => {
+  const logout = useCallback(async (): Promise<void> => {
     try {
       const refreshToken = await AsyncStorage.getItem(
         STORAGE_KEYS.REFRESH_TOKEN
       )
       if (refreshToken) {
         await fetch(`${API_URL}/auth/logout`, {
-          // ✅ USA A URL IMPORTADA
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
@@ -267,7 +255,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch {}
     await clearSession()
-  }
+  }, [clearSession])
 
   return (
     <AuthContext.Provider value={{ ...state, login, logout, refreshSession }}>

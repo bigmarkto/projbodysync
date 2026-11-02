@@ -1,21 +1,50 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { db } from '../../config/database'
 import { env } from '../../config/env'
-import {
+import type {
   RegisterRequest,
   LoginRequest,
   User,
   AuthResponse,
   JwtPayload,
 } from './auth.types'
-import crypto from 'crypto'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10)
+}
+
+export function hashResetToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex')
+}
+
+function mapDbRowToUser(userDb: any): User {
+  return {
+    id: userDb.id,
+    email: userDb.email,
+    name: userDb.name,
+    heightCm: Number(userDb.height_cm),
+    birthDate: userDb.birth_date,
+    weightKg: Number(userDb.weight_kg),
+    gender: userDb.gender,
+    fitnessGoal: userDb.fitness_goal,
+    role: userDb.role,
+    experienceLevel: userDb.experience_level,
+    activityLevel: userDb.activity_level,
+    workoutFrequency: userDb.workout_frequency,
+    lastWorkoutDate: userDb.last_workout_date,
+    subscriptionType: userDb.subscription_type,
+    desiredWeightKg: userDb.desired_weight_kg
+      ? Number(userDb.desired_weight_kg)
+      : null,
+    hydrationReminder: userDb.hydration_reminder,
+    desiredModality: userDb.desired_modality,
+    workoutSchedule: userDb.workout_schedule,
+  }
 }
 
 function generateTokens(user: User): {
@@ -38,6 +67,31 @@ function generateTokens(user: User): {
 
   return { accessToken, refreshToken }
 }
+
+const USER_WITH_PROFILE_SELECT = `
+  SELECT
+    u.id,
+    u.email,
+    u.name,
+    u.password_hash,
+    COALESCE(up.height_cm, u.height_cm) AS height_cm,
+    COALESCE(up.birth_date, u.birth_date) AS birth_date,
+    COALESCE(up.weight_kg, u.weight_kg) AS weight_kg,
+    COALESCE(up.gender, u.gender) AS gender,
+    COALESCE(up.fitness_goal, u.fitness_goal) AS fitness_goal,
+    COALESCE(up.role, u.role) AS role,
+    COALESCE(up.experience_level, u.experience_level) AS experience_level,
+    COALESCE(up.activity_level, u.activity_level) AS activity_level,
+    COALESCE(up.workout_frequency, u.workout_frequency) AS workout_frequency,
+    COALESCE(up.last_workout_date, u.last_workout_date) AS last_workout_date,
+    COALESCE(up.subscription_type, u.subscription_type) AS subscription_type,
+    COALESCE(up.desired_weight_kg, u.desired_weight_kg) AS desired_weight_kg,
+    COALESCE(up.hydration_reminder, u.hydration_reminder) AS hydration_reminder,
+    COALESCE(up.desired_modality, u.desired_modality) AS desired_modality,
+    COALESCE(up.workout_schedule, u.workout_schedule) AS workout_schedule
+  FROM users u
+  LEFT JOIN user_profiles up ON up.user_id = u.id
+`
 
 export const authService = {
   // 1. REGISTRO
@@ -77,7 +131,6 @@ export const authService = {
     try {
       await client.query('BEGIN')
 
-      // 1. Cria o usuário na tabela users (COM role)
       const userResult = await client.query(
         `INSERT INTO users (
           email, password_hash, name, height_cm, birth_date,
@@ -113,32 +166,8 @@ export const authService = {
         ]
       )
 
-      const userDb = userResult.rows[0]
+      const user = mapDbRowToUser(userResult.rows[0])
 
-      const user: User = {
-        id: userDb.id,
-        email: userDb.email,
-        name: userDb.name,
-        heightCm: Number(userDb.height_cm),
-        birthDate: userDb.birth_date,
-        weightKg: Number(userDb.weight_kg),
-        gender: userDb.gender,
-        fitnessGoal: userDb.fitness_goal,
-        role: userDb.role,
-        experienceLevel: userDb.experience_level,
-        activityLevel: userDb.activity_level,
-        workoutFrequency: userDb.workout_frequency,
-        lastWorkoutDate: userDb.last_workout_date,
-        subscriptionType: userDb.subscription_type,
-        desiredWeightKg: userDb.desired_weight_kg
-          ? Number(userDb.desired_weight_kg)
-          : null,
-        hydrationReminder: userDb.hydration_reminder,
-        desiredModality: userDb.desired_modality,
-        workoutSchedule: userDb.workout_schedule,
-      }
-
-      // 2. Cria o perfil na tabela user_profiles
       await client.query(
         `INSERT INTO user_profiles (
           user_id, weight_kg, height_cm, birth_date, gender,
@@ -167,12 +196,7 @@ export const authService = {
         ]
       )
 
-      await client.query('COMMIT')
-
-      // 3. Gera os tokens
       const tokens = generateTokens(user)
-
-      // 4. Salva o refresh token
       const refreshTokenHash = await hashPassword(tokens.refreshToken)
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
@@ -181,6 +205,8 @@ export const authService = {
          VALUES ($1, $2, $3)`,
         [user.id, refreshTokenHash, expiresAt]
       )
+
+      await client.query('COMMIT')
 
       return { user, ...tokens }
     } catch (error) {
@@ -194,11 +220,7 @@ export const authService = {
   // 2. LOGIN
   async login({ email, password }: LoginRequest): Promise<AuthResponse> {
     const result = await db.query(
-      `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
-              role, experience_level, activity_level, workout_frequency, last_workout_date, 
-              subscription_type, desired_weight_kg, 
-              hydration_reminder, desired_modality, workout_schedule, password_hash 
-       FROM users WHERE email = $1`,
+      `${USER_WITH_PROFILE_SELECT} WHERE u.email = $1`,
       [email]
     )
 
@@ -213,29 +235,7 @@ export const authService = {
       throw new Error('Credenciais inválidas')
     }
 
-    const user: User = {
-      id: userDb.id,
-      email: userDb.email,
-      name: userDb.name,
-      heightCm: Number(userDb.height_cm),
-      birthDate: userDb.birth_date,
-      weightKg: Number(userDb.weight_kg),
-      gender: userDb.gender,
-      fitnessGoal: userDb.fitness_goal,
-      role: userDb.role,
-      experienceLevel: userDb.experience_level,
-      activityLevel: userDb.activity_level,
-      workoutFrequency: userDb.workout_frequency,
-      lastWorkoutDate: userDb.last_workout_date,
-      subscriptionType: userDb.subscription_type,
-      desiredWeightKg: userDb.desired_weight_kg
-        ? Number(userDb.desired_weight_kg)
-        : null,
-      hydrationReminder: userDb.hydration_reminder,
-      desiredModality: userDb.desired_modality,
-      workoutSchedule: userDb.workout_schedule,
-    }
-
+    const user = mapDbRowToUser(userDb)
     const tokens = generateTokens(user)
 
     const refreshTokenHash = await hashPassword(tokens.refreshToken)
@@ -257,7 +257,7 @@ export const authService = {
     let payload: JwtPayload
     try {
       payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload
-    } catch (err) {
+    } catch {
       throw new Error('Refresh token inválido ou expirado')
     }
 
@@ -285,38 +285,11 @@ export const authService = {
     }
 
     const userResult = await db.query(
-      `SELECT id, email, name, height_cm, birth_date, weight_kg, gender, fitness_goal, 
-              role, experience_level, activity_level, workout_frequency, last_workout_date, 
-              subscription_type, desired_weight_kg, 
-              hydration_reminder, desired_modality, workout_schedule 
-       FROM users WHERE id = $1`,
+      `${USER_WITH_PROFILE_SELECT} WHERE u.id = $1`,
       [validTokenRecord.user_id]
     )
 
-    const userDb = userResult.rows[0]
-    const user: User = {
-      id: userDb.id,
-      email: userDb.email,
-      name: userDb.name,
-      heightCm: Number(userDb.height_cm),
-      birthDate: userDb.birth_date,
-      weightKg: Number(userDb.weight_kg),
-      gender: userDb.gender,
-      fitnessGoal: userDb.fitness_goal,
-      role: userDb.role,
-      experienceLevel: userDb.experience_level,
-      activityLevel: userDb.activity_level,
-      workoutFrequency: userDb.workout_frequency,
-      lastWorkoutDate: userDb.last_workout_date,
-      subscriptionType: userDb.subscription_type,
-      desiredWeightKg: userDb.desired_weight_kg
-        ? Number(userDb.desired_weight_kg)
-        : null,
-      hydrationReminder: userDb.hydration_reminder,
-      desiredModality: userDb.desired_modality,
-      workoutSchedule: userDb.workout_schedule,
-    }
-
+    const user = mapDbRowToUser(userResult.rows[0])
     const newTokens = generateTokens(user)
 
     await db.query('DELETE FROM refresh_tokens WHERE id = $1', [
@@ -340,7 +313,7 @@ export const authService = {
     let payload: JwtPayload
     try {
       payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload
-    } catch (err) {
+    } catch {
       throw new Error('Refresh token inválido')
     }
 
@@ -353,51 +326,37 @@ export const authService = {
       throw new Error('Nenhum token ativo encontrado')
     }
   },
+
   // 5. RECUPERAÇÃO DE SENHA (Solicitação)
   async forgotPassword(email: string): Promise<void> {
-    // Busca o usuário (não revela se existe ou não)
     const result = await db.query('SELECT id FROM users WHERE email = $1', [
       email,
     ])
 
     if (result.rows.length === 0) {
-      // Retorna silenciosamente para manter a mensagem genérica
       return
     }
 
     const userId = result.rows[0].id
-
-    // Gera um token único e seguro
     const token = crypto.randomBytes(32).toString('hex')
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutos
+    const tokenHash = hashResetToken(token)
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000)
 
-    // Salva o token no banco
     await db.query(
       `INSERT INTO password_reset_tokens (user_id, token, expires_at) 
        VALUES ($1, $2, $3)`,
-      [userId, token, expiresAt]
+      [userId, tokenHash, expiresAt]
     )
-
-    // TODO: Integrar com Nodemailer para enviar o email de verdade
-    // Por enquanto, logamos no console para facilitar os testes
-    console.log('=========================================')
-    console.log('🔑 TOKEN DE RECUPERAÇÃO GERADO:')
-    console.log(`Email: ${email}`)
-    console.log(`Token: ${token}`)
-    console.log(`Expira em: ${expiresAt.toLocaleString()}`)
-    console.log('=========================================')
-
-    // Exemplo de como seria com Nodemailer:
-    // await sendRecoveryEmail(email, token)
   },
 
   // 6. RECUPERAÇÃO DE SENHA (Redefinição)
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    // Busca o token no banco
+    const tokenHash = hashResetToken(token)
+
     const result = await db.query(
       `SELECT id, user_id, expires_at, used FROM password_reset_tokens 
        WHERE token = $1`,
-      [token]
+      [tokenHash]
     )
 
     if (result.rows.length === 0) {
@@ -406,26 +365,17 @@ export const authService = {
 
     const tokenRecord = result.rows[0]
 
-    // Verifica se já foi usado
-    if (tokenRecord.used) {
+    if (tokenRecord.used || new Date(tokenRecord.expires_at) < new Date()) {
       throw new Error('Token inválido ou expirado')
     }
 
-    // Verifica se expirou (30 minutos)
-    if (new Date(tokenRecord.expires_at) < new Date()) {
-      throw new Error('Token inválido ou expirado')
-    }
-
-    // Gera o novo hash da senha
     const passwordHash = await hashPassword(newPassword)
 
-    // Atualiza a senha do usuário
     await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
       passwordHash,
       tokenRecord.user_id,
     ])
 
-    // Invalida o token usado (RFS03: "sistema invalida o link usado")
     await db.query(
       'UPDATE password_reset_tokens SET used = TRUE WHERE id = $1',
       [tokenRecord.id]

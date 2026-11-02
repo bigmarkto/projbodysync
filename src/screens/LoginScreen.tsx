@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,18 +9,16 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
-  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../context/ThemeProvider";
 import { lightColors } from "../theme/colors";
 import { useAuth } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
+import { API_URL } from "../config/api";
 
-const GOOGLE_LOGO =
-  "https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg";
-
-const ErrorBanner = ({ message }: { message: string }) => {
+const ErrorBanner = ({ message, styles, colors }: { message: string; styles: any; colors: typeof lightColors }) => {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-8)).current;
 
@@ -43,7 +41,7 @@ const ErrorBanner = ({ message }: { message: string }) => {
       opacity.setValue(0);
       translateY.setValue(-8);
     }
-  }, [message]);
+  }, [message, opacity, translateY]);
 
   if (!message) return null;
 
@@ -53,8 +51,8 @@ const ErrorBanner = ({ message }: { message: string }) => {
     >
       <Ionicons
         name="alert-circle-outline"
-        size={16}
-        color="#991b1b"
+        size={18}
+        color={colors.error}
         style={{ marginRight: 8 }}
       />
       <Text style={styles.errorText}>{message}</Text>
@@ -85,6 +83,7 @@ const friendlyError = (raw: string): string => {
 
 const LoginScreen = () => {
   const { login } = useAuth();
+  const { colors, isDark } = useTheme();
   const navigation = useNavigation<any>();
 
   const [email, setEmail] = useState("");
@@ -94,6 +93,9 @@ const LoginScreen = () => {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [infoMsg, setInfoMsg] = useState("");
+
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const logoScale = useRef(new Animated.Value(0.8)).current;
   const formOpacity = useRef(new Animated.Value(0)).current;
@@ -121,21 +123,22 @@ const LoginScreen = () => {
         }),
       ]),
     ]).start();
-  }, []);
+  }, [formOpacity, formTranslate, logoScale]);
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   const handleLogin = async () => {
     setErrorMsg("");
+    setInfoMsg("");
 
     if (!email.trim()) {
-          setErrorMsg("Informe seu e-mail.");
-          return;
-        }
-        // validação simples de formato de e‑mail
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailPattern.test(email.trim())) {
-          setErrorMsg("Formato de e‑mail inválido.");
-          return;
-        }
+      setErrorMsg("Informe seu e-mail.");
+      return;
+    }
+    if (!emailPattern.test(email.trim())) {
+      setErrorMsg("Formato de e‑mail inválido.");
+      return;
+    }
     if (!password.trim()) {
       setErrorMsg("Informe sua senha.");
       return;
@@ -143,19 +146,47 @@ const LoginScreen = () => {
 
     setIsLoading(true);
     try {
-      console.log("Teste")
       await login(email.trim(), password);
     } catch (err: any) {
       const raw = err?.message || String(err);
-      console.error("[LoginScreen] Erro ao fazer login:", raw);
       setErrorMsg(friendlyError(raw));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleForgotPassword = async () => {
+    setErrorMsg("");
+    setInfoMsg("");
+
+    if (!email.trim() || !emailPattern.test(email.trim())) {
+      setErrorMsg("Digite seu e-mail válido no campo acima para recuperar a senha.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMsg(data.error || "Não foi possível solicitar a recuperação.");
+        return;
+      }
+      setInfoMsg(
+        data.message ||
+          "Se o e-mail estiver cadastrado, enviamos as instruções de recuperação."
+      );
+    } catch {
+      setErrorMsg("Sem conexão com o servidor.");
+    }
+  };
+
   const handleFieldChange = (setter: (v: string) => void) => (v: string) => {
     if (errorMsg) setErrorMsg("");
+    if (infoMsg) setInfoMsg("");
     setter(v);
   };
 
@@ -170,12 +201,12 @@ const LoginScreen = () => {
             style={[styles.logoWrapper, { transform: [{ scale: logoScale }] }]}
           >
             <View style={styles.logoCircle}>
-              <Ionicons name="flash" size={32} color="#fff" />
+              <Ionicons name="flash" size={32} color="#FFFFFF" />
             </View>
           </Animated.View>
-          <Animated.View style={{ opacity: formOpacity }}>
-            <Text style={styles.title}>Bem-vindo de volta</Text>
-            <Text style={styles.subtitle}>Continue sua jornada fitness</Text>
+          <Animated.View style={{ opacity: formOpacity, alignItems: "center" }}>
+            <Text style={styles.title}>BodySync</Text>
+            <Text style={styles.subtitle}>Sua melhor versão em movimento</Text>
           </Animated.View>
         </View>
 
@@ -188,7 +219,19 @@ const LoginScreen = () => {
             },
           ]}
         >
-          <ErrorBanner message={errorMsg} />
+          <ErrorBanner message={errorMsg} styles={styles} colors={colors} />
+
+          {!!infoMsg && (
+            <View style={styles.infoBanner}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={16}
+                color={colors.success}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.infoText}>{infoMsg}</Text>
+            </View>
+          )}
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>E-mail</Text>
@@ -203,14 +246,14 @@ const LoginScreen = () => {
                 name="mail-outline"
                 size={18}
                 color={
-                  emailFocused ? lightColors.primary : lightColors.text.tertiary
+                  emailFocused ? colors.primary : colors.text.tertiary
                 }
                 style={styles.inputIcon}
               />
               <TextInput
                 style={styles.input}
                 placeholder="seu@email.com"
-                placeholderTextColor={lightColors.text.tertiary}
+                placeholderTextColor={colors.text.tertiary}
                 value={email}
                 onChangeText={handleFieldChange(setEmail)}
                 onFocus={() => setEmailFocused(true)}
@@ -236,15 +279,15 @@ const LoginScreen = () => {
                 size={18}
                 color={
                   passwordFocused
-                    ? lightColors.primary
-                    : lightColors.text.tertiary
+                    ? colors.primary
+                    : colors.text.tertiary
                 }
                 style={styles.inputIcon}
               />
               <TextInput
                 style={[styles.input, styles.inputPassword]}
                 placeholder="••••••••"
-                placeholderTextColor={lightColors.text.tertiary}
+                placeholderTextColor={colors.text.tertiary}
                 value={password}
                 onChangeText={handleFieldChange(setPassword)}
                 onFocus={() => setPasswordFocused(true)}
@@ -260,17 +303,12 @@ const LoginScreen = () => {
                 <Ionicons
                   name={showPassword ? "eye-outline" : "eye-off-outline"}
                   size={18}
-                  color={lightColors.text.tertiary}
+                  color={colors.text.tertiary}
                 />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
-              onPress={() => {
-                console.log(
-                  "[LoginScreen] Recuperação de senha solicitada para:",
-                  email || "(sem email)",
-                );
-              }}
+              onPress={handleForgotPassword}
               style={styles.forgotWrapper}
             >
               <Text style={styles.forgot}>Esqueci minha senha</Text>
@@ -284,43 +322,18 @@ const LoginScreen = () => {
             ]}
             onPress={handleLogin}
             disabled={isLoading}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.loginButtonText}>Entrar</Text>
+              <Text style={styles.loginButtonText}>Entrar na conta</Text>
             )}
-          </TouchableOpacity>
-
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou continue com</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.googleButton}
-            activeOpacity={0.85}
-            onPress={() =>
-              console.log(
-                "[LoginScreen] Login com Google solicitado (não implementado)",
-              )
-            }
-          >
-            <Image
-              source={{
-                uri: "https://www.google.com/favicon.ico",
-              }}
-              style={styles.googleLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.googleButtonText}>Entrar com Google</Text>
           </TouchableOpacity>
 
           <View style={styles.registerRow}>
             <Text style={styles.registerText}>Não tem conta? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+            <TouchableOpacity onPress={() => navigation.navigate("Register")}>
               <Text style={styles.registerLink}>Cadastre-se</Text>
             </TouchableOpacity>
           </View>
@@ -330,163 +343,165 @@ const LoginScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: lightColors.primary },
-  flex: { flex: 1 },
-  header: {
-    backgroundColor: lightColors.primary,
-    alignItems: "center",
-    paddingTop: 36,
-    paddingBottom: 32,
-    paddingHorizontal: 24,
-  },
-  logoWrapper: { marginBottom: 16 },
-  logoCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 24,
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-    textAlign: "center",
-  },
-  form: {
-    flex: 1,
-    backgroundColor: lightColors.background,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 24,
-    justifyContent: "center",
-  },
-  errorBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fee2e2",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#fca5a5",
-  },
-  errorText: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: "#991b1b",
-    flex: 1,
-  },
-  inputGroup: { marginBottom: 14 },
-  label: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: lightColors.text.secondary,
-    marginBottom: 6,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: lightColors.surface,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: lightColors.border,
-    height: 52,
-    paddingHorizontal: 14,
-  },
-  inputFocused: { borderColor: lightColors.primary },
-  inputError: { borderColor: "#fca5a5" },
-  inputIcon: { marginRight: 10 },
-  input: {
-    flex: 1,
-    fontFamily: "Poppins_400Regular",
-    fontSize: 14,
-    color: lightColors.text.primary,
-  },
-  inputPassword: { letterSpacing: 1 },
-  eyeButton: { padding: 2 },
-  forgotWrapper: { alignSelf: "flex-end", marginTop: 8 },
-  forgot: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: lightColors.primary,
-  },
-  loginButton: {
-    backgroundColor: lightColors.primary,
-    borderRadius: 14,
-    height: 52,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
-    marginBottom: 20,
-    shadowColor: lightColors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  loginButtonDisabled: { opacity: 0.7 },
-  loginButtonText: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 16,
-    color: "#fff",
-  },
-  dividerRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: lightColors.border },
-  dividerText: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 12,
-    color: lightColors.text.tertiary,
-    marginHorizontal: 12,
-  },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: lightColors.border,
-    backgroundColor: lightColors.surface,
-    height: 52,
-    marginBottom: 20,
-    gap: 10,
-  },
-  googleLogo: {
-    width: 22,
-    height: 22,
-  },
-  googleButtonText: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 15,
-    color: lightColors.text.primary,
-  },
-  registerRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  registerText: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 14,
-    color: lightColors.text.secondary,
-  },
-  registerLink: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 14,
-    color: lightColors.primary,
-  },
-});
+const createStyles = (colors: typeof lightColors, isDark: boolean) =>
+  StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor: isDark ? colors.background : colors.primary,
+    },
+    flex: { flex: 1 },
+    header: {
+      backgroundColor: isDark ? colors.background : colors.primary,
+      alignItems: "center",
+      paddingTop: 36,
+      paddingBottom: 28,
+      paddingHorizontal: 24,
+    },
+    logoWrapper: { marginBottom: 14 },
+    logoCircle: {
+      width: 68,
+      height: 68,
+      borderRadius: 22,
+      backgroundColor: isDark ? colors.surface : "rgba(255,255,255,0.25)",
+      borderWidth: isDark ? 1.5 : 0,
+      borderColor: isDark ? colors.primary : "transparent",
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    title: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 26,
+      color: "#FFFFFF",
+      textAlign: "center",
+      letterSpacing: 0.5,
+    },
+    subtitle: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: isDark ? colors.text.secondary : "rgba(255,255,255,0.9)",
+      textAlign: "center",
+      marginTop: 2,
+    },
+    form: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
+      borderTopWidth: isDark ? 1 : 0,
+      borderTopColor: colors.border,
+      paddingHorizontal: 24,
+      paddingTop: 28,
+      paddingBottom: 24,
+      justifyContent: "center",
+    },
+    errorBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.errorLight,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.error + "40",
+    },
+    errorText: {
+      fontFamily: "Poppins_500Medium",
+      fontSize: 13,
+      color: colors.error,
+      flex: 1,
+    },
+    infoBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.successLight,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.success + "40",
+    },
+    infoText: {
+      fontFamily: "Poppins_500Medium",
+      fontSize: 13,
+      color: colors.success,
+      flex: 1,
+    },
+    inputGroup: { marginBottom: 14 },
+    label: {
+      fontFamily: "Poppins_500Medium",
+      fontSize: 13,
+      color: colors.text.secondary,
+      marginBottom: 6,
+    },
+    inputWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      height: 52,
+      paddingHorizontal: 14,
+    },
+    inputFocused: { borderColor: colors.primary },
+    inputError: { borderColor: colors.error },
+    inputIcon: { marginRight: 10 },
+    input: {
+      flex: 1,
+      fontFamily: "Poppins_400Regular",
+      fontSize: 14,
+      color: colors.text.primary,
+    },
+    inputPassword: { letterSpacing: 1 },
+    eyeButton: { padding: 4 },
+    forgotWrapper: { alignSelf: "flex-end", marginTop: 8 },
+    forgot: {
+      fontFamily: "Poppins_500Medium",
+      fontSize: 13,
+      color: colors.primary,
+    },
+    loginButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 14,
+      height: 52,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 8,
+      marginBottom: 20,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    loginButtonDisabled: { opacity: 0.6 },
+    loginButtonText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 16,
+      color: "#FFFFFF",
+    },
+    registerRow: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    registerText: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 14,
+      color: colors.text.secondary,
+    },
+    registerLink: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 14,
+      color: colors.primary,
+    },
+  });
 
 export default LoginScreen;

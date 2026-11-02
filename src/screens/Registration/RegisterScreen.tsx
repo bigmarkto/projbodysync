@@ -19,7 +19,7 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
   const navigation = useNavigation<any>();
   const [stepIdx, setStepIdx] = useState(0);
   const [showPayment, setShowPayment] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
+  const [registeredToken, setRegisteredToken] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isPersonal = data.role === 'personal';
@@ -31,22 +31,21 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
   const { register } = useRegisterApi();
 
   const handleConfirm = async () => {
+    setErrors({});
     try {
-      console.log('POST /auth/register', data);
-      setLog((prev) => [...prev, `POST /auth/register (payload from context)`]);
       const { res, json } = await register(data);
-      console.log('Response', json);
-      setLog((prev) => [...prev, `Response ${JSON.stringify(json)}`]);
       if (!res.ok) {
         setErrors((e) => ({ ...e, submit: json.error || 'Falha no cadastro' }));
         return;
       }
-    } catch (e) {
-      console.error(e);
-      setLog((prev) => [...prev, `Error ${e}`]);
+      if (json.accessToken) {
+        setRegisteredToken(json.accessToken);
+      }
+    } catch {
       setErrors((e) => ({ ...e, submit: 'Erro ao conectar ao servidor' }));
       return;
     }
+
     if (data.subscriptionType && data.subscriptionType !== 'free') {
       setShowPayment(true);
     } else {
@@ -57,8 +56,11 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
   if (showPayment) {
     return (
       <PaymentScreen
-        accessToken={accessToken ?? ''}
-        onPaid={() => setShowPayment(false)}
+        accessToken={registeredToken || accessToken || ''}
+        onPaid={() => {
+          setShowPayment(false);
+          navigation.navigate('Login');
+        }}
         onBack={() => setShowPayment(false)}
       />
     );
@@ -69,7 +71,6 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
         <Step1PersonalData
           key="s1"
           totalSteps={total}
-          currentStep={1}
           onNext={goNext}
           onBack={goBack}
         />,
@@ -87,7 +88,6 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
         <Step1PersonalData
           key="s1"
           totalSteps={total}
-          currentStep={1}
           onNext={goNext}
           onBack={goBack}
         />,
@@ -140,15 +140,6 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
   return (
     <>
       {steps[stepIdx]}
-      {log.length > 0 && (
-        <View style={s.logContainer}>
-          {log.map((l, i) => (
-            <Text key={i} style={s.logText}>
-              {l}
-            </Text>
-          ))}
-        </View>
-      )}
       {errors.submit && <Text style={s.errorText}>{errors.submit}</Text>}
     </>
   );
@@ -171,17 +162,6 @@ const RegisterScreen = () => {
 };
 
 const s = StyleSheet.create({
-  logContainer: {
-    padding: 12,
-    backgroundColor: lightColors.surface,
-    margin: 12,
-    borderRadius: 8,
-  },
-  logText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: lightColors.text.secondary,
-  },
   errorText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,

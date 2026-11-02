@@ -1,15 +1,15 @@
 // src/modules/hydration/hydration.service.ts
 import { db } from '../../config/database'
+import { dateKey } from '../session/session.service'
 import {
   CUP_SIZE_ML,
   ML_PER_KG,
   DEFAULT_GOAL_ML,
   MIN_GOAL_ML,
   MAX_GOAL_ML,
-  HydrationStatus,
+  type HydrationStatus,
 } from './hydration.types'
 
-// Busca peso e meta custom do perfil para calcular as metas de água
 async function getProfileGoals(userId: string): Promise<{
   suggestedGoalMl: number
   customGoalMl: number | null
@@ -34,8 +34,7 @@ async function getProfileGoals(userId: string): Promise<{
   return { suggestedGoalMl, customGoalMl }
 }
 
-// Monta o objeto de status a partir do consumo e das metas
-function buildStatus(
+export function buildHydrationStatus(
   date: string,
   consumedMl: number,
   suggestedGoalMl: number,
@@ -60,49 +59,47 @@ function buildStatus(
 }
 
 export const hydrationService = {
-  // Status de hidratação do dia atual
   async getStatus(userId: string): Promise<HydrationStatus> {
     const { suggestedGoalMl, customGoalMl } = await getProfileGoals(userId)
+    const today = dateKey()
 
     const result = await db.query(
       `SELECT consumed_ml, to_char(log_date, 'YYYY-MM-DD') AS log_date
        FROM hydration_logs
-       WHERE user_id = $1 AND log_date = CURRENT_DATE`,
-      [userId]
+       WHERE user_id = $1 AND log_date = $2::date`,
+      [userId, today]
     )
 
     const consumedMl = result.rows[0] ? Number(result.rows[0].consumed_ml) : 0
-    const date =
-      result.rows[0]?.log_date ?? new Date().toISOString().slice(0, 10)
+    const date = result.rows[0]?.log_date ?? today
 
-    return buildStatus(date, consumedMl, suggestedGoalMl, customGoalMl)
+    return buildHydrationStatus(date, consumedMl, suggestedGoalMl, customGoalMl)
   },
 
-  // Registra consumo (positivo adiciona, negativo desfaz). Nunca fica < 0.
   async addIntake(
     userId: string,
     amountMl: number = CUP_SIZE_ML
   ): Promise<HydrationStatus> {
     const { suggestedGoalMl, customGoalMl } = await getProfileGoals(userId)
+    const today = dateKey()
 
     const result = await db.query(
       `INSERT INTO hydration_logs (user_id, log_date, consumed_ml)
-       VALUES ($1, CURRENT_DATE, GREATEST(0, $2))
+       VALUES ($1, $2::date, GREATEST(0, $3))
        ON CONFLICT (user_id, log_date)
        DO UPDATE SET
-         consumed_ml = GREATEST(0, hydration_logs.consumed_ml + $2),
+         consumed_ml = GREATEST(0, hydration_logs.consumed_ml + $3),
          updated_at = NOW()
        RETURNING consumed_ml, to_char(log_date, 'YYYY-MM-DD') AS log_date`,
-      [userId, Math.round(amountMl)]
+      [userId, today, Math.round(amountMl)]
     )
 
     const consumedMl = Number(result.rows[0].consumed_ml)
     const date = result.rows[0].log_date
 
-    return buildStatus(date, consumedMl, suggestedGoalMl, customGoalMl)
+    return buildHydrationStatus(date, consumedMl, suggestedGoalMl, customGoalMl)
   },
 
-  // Define (ou zera, com null) a meta personalizada de água
   async setCustomGoal(
     userId: string,
     goalMl: number | null

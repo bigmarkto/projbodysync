@@ -1,13 +1,12 @@
 // src/modules/user-profile/user-profile.service.ts
 import { db } from '../../config/database'
-import {
+import type {
   CreateProfileRequest,
   UpdateProfileRequest,
   UserProfile,
   ProfileResponse,
 } from './user-profile.types'
 
-// Função auxiliar para calcular idade
 function calculateAge(birthDate: string | null): number | null {
   if (!birthDate) return null
   const birth = new Date(birthDate)
@@ -22,7 +21,6 @@ function calculateAge(birthDate: string | null): number | null {
   return age
 }
 
-// Função auxiliar para calcular IMC
 function calculateBMI(
   weightKg: number | string | null,
   heightCm: number | null
@@ -34,12 +32,10 @@ function calculateBMI(
   return Number((weight / (heightM * heightM)).toFixed(2))
 }
 
-// Função para converter dados do banco (snake_case) para a aplicação (camelCase)
 function mapDbRowToProfile(row: any): UserProfile {
   return {
     id: row.id,
     userId: row.user_id,
-    // Converter DECIMAL para number
     weightKg: row.weight_kg ? Number(row.weight_kg) : null,
     heightCm: row.height_cm,
     birthDate: row.birth_date,
@@ -48,23 +44,19 @@ function mapDbRowToProfile(row: any): UserProfile {
     experienceLevel: row.experience_level,
     activityLevel: row.activity_level,
     workoutDays: row.workout_days,
-    // Novos campos de condição física
     workoutFrequency: row.workout_frequency,
     lastWorkoutDate: row.last_workout_date,
     consistencyScore: row.consistency_score,
-    // Campos de preferência
     subscriptionType: row.subscription_type,
     desiredWeightKg: row.desired_weight_kg ? Number(row.desired_weight_kg) : null,
     hydrationReminder: row.hydration_reminder,
     desiredModality: row.desired_modality,
-    workoutSchedule: row.workout_schedule, // JSONB já vem como objeto
-    // Timestamps
+    workoutSchedule: row.workout_schedule,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
-// Função auxiliar para montar a resposta com campos calculados
 function buildProfileResponse(profile: UserProfile): ProfileResponse {
   const age = calculateAge(profile.birthDate)
   const bmi = calculateBMI(profile.weightKg, profile.heightCm)
@@ -78,8 +70,26 @@ function buildProfileResponse(profile: UserProfile): ProfileResponse {
   }
 }
 
+export const PROFILE_FIELD_MAP: Record<string, string> = {
+  weightKg: 'weight_kg',
+  heightCm: 'height_cm',
+  birthDate: 'birth_date',
+  gender: 'gender',
+  fitnessGoal: 'fitness_goal',
+  experienceLevel: 'experience_level',
+  activityLevel: 'activity_level',
+  workoutDays: 'workout_days',
+  workoutFrequency: 'workout_frequency',
+  lastWorkoutDate: 'last_workout_date',
+  consistencyScore: 'consistency_score',
+  subscriptionType: 'subscription_type',
+  desiredWeightKg: 'desired_weight_kg',
+  hydrationReminder: 'hydration_reminder',
+  desiredModality: 'desired_modality',
+  workoutSchedule: 'workout_schedule',
+}
+
 export const userProfileService = {
-  // Criar ou atualizar perfil (upsert)
   async upsert(
     userId: string,
     data: CreateProfileRequest
@@ -117,7 +127,6 @@ export const userProfileService = {
     return buildProfileResponse(profile)
   },
 
-  // Buscar perfil do usuário
   async getByUserId(userId: string): Promise<ProfileResponse> {
     const result = await db.query(
       'SELECT * FROM user_profiles WHERE user_id = $1',
@@ -132,7 +141,6 @@ export const userProfileService = {
     return buildProfileResponse(profile)
   },
 
-  // Atualizar perfil parcialmente
   async update(
     userId: string,
     data: UpdateProfileRequest
@@ -141,33 +149,12 @@ export const userProfileService = {
     const values: any[] = []
     let paramIndex = 1
 
-    // Mapeamento de camelCase para snake_case
-    const fieldMap: Record<string, string> = {
-      weightKg: 'weight_kg',
-      heightCm: 'height_cm',
-      birthDate: 'birth_date',
-      gender: 'gender',
-      fitnessGoal: 'fitness_goal',
-      experienceLevel: 'experience_level',
-      activityLevel: 'activity_level',
-      workoutDays: 'workout_days',
-      // Novos campos
-      workoutFrequency: 'workout_frequency',
-      lastWorkoutDate: 'last_workout_date',
-      consistencyScore: 'consistency_score',
-      subscriptionType: 'subscription_type',
-      desiredWeightKg: 'desired_weight_kg',
-      hydrationReminder: 'hydration_reminder',
-      desiredModality: 'desired_modality',
-      workoutSchedule: 'workout_schedule',
-    }
-
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined && value !== null) {
-        const dbColumn = fieldMap[key] || key
+        const dbColumn = PROFILE_FIELD_MAP[key]
+        if (!dbColumn) continue
         updates.push(`${dbColumn} = $${paramIndex}`)
-        // Converter array para string JSON se for workoutSchedule
-        if (key === 'workoutSchedule' && Array.isArray(value)) {
+        if (key === 'workoutSchedule' && typeof value === 'object') {
           values.push(JSON.stringify(value))
         } else {
           values.push(value)

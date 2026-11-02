@@ -12,7 +12,6 @@ import { useTheme } from "../context/ThemeProvider";
 import { useApi } from "../hooks/useApi";
 import { lightColors } from "../theme/colors";
 
-// ─── Tipo espelhando GET /hydration ──────────────────────────────────────────
 interface HydrationStatus {
   date: string;
   consumedMl: number;
@@ -54,10 +53,8 @@ const HydrationCard = () => {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
-  // Registra consumo (delta em ml, pode ser negativo)
   const addIntake = useCallback(
     async (amountMl: number) => {
       if (busy) return;
@@ -79,7 +76,6 @@ const HydrationCard = () => {
     [busy, request],
   );
 
-  // Salva meta (número em ml, ou null para voltar à sugerida)
   const saveGoal = useCallback(
     async (goalMl: number | null) => {
       if (busy) return;
@@ -106,7 +102,6 @@ const HydrationCard = () => {
     [busy, request],
   );
 
-  // Toque num copo: preenche até ele, ou reduz se já estiver cheio
   const onCupPress = useCallback(
     (index: number) => {
       if (!status) return;
@@ -141,53 +136,72 @@ const HydrationCard = () => {
 
   const { cups, consumedMl, goalMl, percentage, suggestedGoalMl } = status;
   const usingSuggested = status.customGoalMl == null;
+  const progressPercent = Math.min(Math.max(percentage, 0), 100);
 
   return (
     <View style={styles.card}>
       {/* Cabeçalho */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Ionicons name="water-outline" size={18} color={colors.info} />
-          <Text style={styles.title}>Hidratação diária</Text>
+          <View style={styles.iconCircle}>
+            <Ionicons name="water" size={18} color={colors.info} />
+          </View>
+          <View>
+            <Text style={styles.title}>Hidratação diária</Text>
+            <Text style={styles.subtitle}>
+              {usingSuggested ? "Meta calculada pelo peso" : "Meta personalizada"}
+            </Text>
+          </View>
         </View>
+
         <View style={styles.headerRight}>
-          <Text style={styles.percentage}>{percentage}%</Text>
+          <View style={styles.percentBadge}>
+            <Text style={styles.percentText}>{percentage}%</Text>
+          </View>
           <TouchableOpacity
             onPress={() => setEditing((v) => !v)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={{ marginLeft: 10 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.settingsBtn}
           >
             <Ionicons
-              name="settings-outline"
-              size={16}
-              color={colors.text.tertiary}
+              name={editing ? "close" : "options-outline"}
+              size={18}
+              color={colors.text.secondary}
             />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Copo + números */}
-      <View style={styles.body}>
-        <View style={styles.glass}>
-          <View style={[styles.glassFill, { height: `${percentage}%` }]} />
+      {/* Números e Barra de Progresso Horizontal */}
+      <View style={styles.volumeRow}>
+        <View>
+          <Text style={styles.consumedText}>
+            {consumedMl}{" "}
+            <Text style={styles.unitText}>ml</Text>
+          </Text>
+          <Text style={styles.goalText}>Meta: {goalMl} ml</Text>
         </View>
-        <View style={styles.info}>
-          <Text style={styles.consumedCups}>
-            {cups.consumed}
-            <Text style={styles.totalCups}> / {cups.total} copos</Text>
+        <View style={styles.cupsBadge}>
+          <Ionicons name="pint-outline" size={14} color={colors.info} />
+          <Text style={styles.cupsBadgeText}>
+            {cups.consumed} / {cups.total} copos
           </Text>
-          <Text style={styles.mlText}>
-            {consumedMl} ml de {goalMl} ml consumidos
-          </Text>
-          {usingSuggested && (
-            <Text style={styles.hint}>Meta sugerida pelo seu peso</Text>
-          )}
         </View>
       </View>
 
-      {/* Fileira de copos */}
+      {/* Barra de Progresso */}
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${progressPercent}%` },
+          ]}
+        />
+      </View>
+
+      {/* Fileira de copos interativos */}
       <View style={styles.cupsRow}>
-        {Array.from({ length: cups.total }).map((_, i) => {
+        {Array.from({ length: Math.min(cups.total, 12) }).map((_, i) => {
           const filled = i < cups.consumed;
           return (
             <TouchableOpacity
@@ -195,6 +209,7 @@ const HydrationCard = () => {
               onPress={() => onCupPress(i)}
               disabled={busy}
               style={styles.cupBtn}
+              activeOpacity={0.7}
             >
               <Ionicons
                 name={filled ? "water" : "water-outline"}
@@ -206,31 +221,39 @@ const HydrationCard = () => {
         })}
       </View>
 
-      {/* Ações rápidas */}
+      {/* Ações rápidas táteis */}
       <View style={styles.actions}>
         <TouchableOpacity
           style={[styles.removeBtn, (busy || cups.consumed === 0) && styles.disabled]}
           onPress={() => addIntake(-status.cupSizeMl)}
           disabled={busy || cups.consumed === 0}
         >
-          <Ionicons name="remove" size={18} color={colors.text.secondary} />
+          <Ionicons name="remove" size={20} color={colors.text.secondary} />
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={[styles.addBtn, busy && styles.disabled]}
+          style={[styles.quickAddBtn, busy && styles.disabled]}
           onPress={() => addIntake(status.cupSizeMl)}
           disabled={busy}
         >
-          <Ionicons name="add" size={18} color="#FFFFFF" />
-          <Text style={styles.addBtnText}>
-            Adicionar copo ({status.cupSizeMl} ml)
-          </Text>
+          <Ionicons name="add" size={16} color="#FFFFFF" />
+          <Text style={styles.quickAddText}>+{status.cupSizeMl} ml</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.quickAddSecondary, busy && styles.disabled]}
+          onPress={() => addIntake(500)}
+          disabled={busy}
+        >
+          <Ionicons name="add" size={16} color={colors.info} />
+          <Text style={styles.quickAddSecondaryText}>+500 ml</Text>
         </TouchableOpacity>
       </View>
 
       {/* Editor de meta */}
       {editing && (
         <View style={styles.editor}>
-          <Text style={styles.editorLabel}>Meta diária de água</Text>
+          <Text style={styles.editorLabel}>Ajustar meta de água</Text>
           <TouchableOpacity
             style={[styles.suggestBtn, usingSuggested && styles.suggestBtnActive]}
             onPress={() => saveGoal(null)}
@@ -238,18 +261,18 @@ const HydrationCard = () => {
           >
             <Ionicons
               name={usingSuggested ? "radio-button-on" : "radio-button-off"}
-              size={16}
-              color={usingSuggested ? colors.primary : colors.text.tertiary}
+              size={18}
+              color={usingSuggested ? colors.info : colors.text.tertiary}
             />
             <Text style={styles.suggestText}>
-              Usar meta sugerida ({suggestedGoalMl} ml)
+              Meta sugerida ({suggestedGoalMl} ml)
             </Text>
           </TouchableOpacity>
 
           <View style={styles.customRow}>
             <TextInput
               style={styles.input}
-              placeholder="Meta personalizada (ml)"
+              placeholder="Ex: 2500"
               placeholderTextColor={colors.text.tertiary}
               keyboardType="numeric"
               value={goalInput}
@@ -277,109 +300,180 @@ const HydrationCard = () => {
 const createStyles = (colors: typeof lightColors) =>
   StyleSheet.create({
     card: {
-      backgroundColor: colors.surface,
-      borderRadius: 18,
+      backgroundColor: colors.card,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 16,
-      marginBottom: 14,
+      padding: 18,
+      marginBottom: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: 16,
+      marginBottom: 14,
     },
-    titleRow: { flexDirection: "row", alignItems: "center" },
+    titleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    iconCircle: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: colors.infoLight,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     title: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 15,
       color: colors.text.primary,
-      marginLeft: 8,
     },
-    headerRight: { flexDirection: "row", alignItems: "center" },
-    percentage: {
+    subtitle: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 11,
+      color: colors.text.tertiary,
+      marginTop: -2,
+    },
+    headerRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    percentBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 10,
+      backgroundColor: colors.infoLight,
+    },
+    percentText: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 15,
+      fontSize: 13,
       color: colors.info,
     },
-
-    body: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-    glass: {
-      width: 52,
-      height: 68,
-      borderRadius: 10,
-      borderWidth: 2,
-      borderColor: colors.info + "55",
-      backgroundColor: colors.infoLight,
-      overflow: "hidden",
-      justifyContent: "flex-end",
-      marginRight: 16,
+    settingsBtn: {
+      padding: 6,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceVariant,
     },
-    glassFill: { width: "100%", backgroundColor: colors.info + "AA" },
-    info: { flex: 1 },
-    consumedCups: {
+    volumeRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      justifyContent: "space-between",
+      marginBottom: 10,
+    },
+    consumedText: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 22,
+      fontSize: 26,
       color: colors.text.primary,
+      lineHeight: 30,
     },
-    totalCups: {
+    unitText: {
       fontFamily: "Poppins_500Medium",
-      fontSize: 14,
+      fontSize: 15,
       color: colors.text.tertiary,
     },
-    mlText: {
+    goalText: {
       fontFamily: "Poppins_400Regular",
       fontSize: 12,
       color: colors.text.secondary,
       marginTop: 2,
     },
-    hint: {
-      fontFamily: "Poppins_400Regular",
-      fontSize: 11,
-      color: colors.text.tertiary,
-      marginTop: 2,
+    cupsBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surfaceVariant,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 12,
+      gap: 5,
     },
-
+    cupsBadgeText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 12,
+      color: colors.text.secondary,
+    },
+    progressTrack: {
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.surfaceVariant,
+      overflow: "hidden",
+      marginBottom: 14,
+    },
+    progressFill: {
+      height: "100%",
+      borderRadius: 5,
+      backgroundColor: colors.info,
+    },
     cupsRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      marginBottom: 14,
+      justifyContent: "space-between",
+      marginBottom: 16,
+      paddingHorizontal: 4,
     },
     cupBtn: {
-      width: `${100 / 8}%`,
+      padding: 6,
       alignItems: "center",
-      paddingVertical: 6,
+      justifyContent: "center",
     },
-
-    actions: { flexDirection: "row", alignItems: "center" },
+    actions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
     removeBtn: {
       width: 44,
       height: 44,
       borderRadius: 12,
       borderWidth: 1.5,
       borderColor: colors.border,
+      backgroundColor: colors.surfaceVariant,
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 10,
     },
-    addBtn: {
+    quickAddBtn: {
       flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
       height: 44,
       borderRadius: 12,
       backgroundColor: colors.info,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
     },
-    addBtnText: {
+    quickAddText: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 14,
       color: "#FFFFFF",
-      marginLeft: 6,
     },
-    disabled: { opacity: 0.5 },
-
+    quickAddSecondary: {
+      paddingHorizontal: 14,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: colors.infoLight,
+      borderWidth: 1,
+      borderColor: colors.info + "40",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 2,
+    },
+    quickAddSecondaryText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 13,
+      color: colors.info,
+    },
+    disabled: {
+      opacity: 0.4,
+    },
     editor: {
       marginTop: 16,
       paddingTop: 14,
@@ -395,16 +489,21 @@ const createStyles = (colors: typeof lightColors) =>
     suggestBtn: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 8,
+      paddingVertical: 6,
+      gap: 8,
     },
     suggestBtnActive: {},
     suggestText: {
       fontFamily: "Poppins_400Regular",
       fontSize: 13,
       color: colors.text.secondary,
-      marginLeft: 8,
     },
-    customRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
+    customRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 10,
+      gap: 10,
+    },
     input: {
       flex: 1,
       height: 44,
@@ -415,7 +514,7 @@ const createStyles = (colors: typeof lightColors) =>
       fontFamily: "Poppins_400Regular",
       fontSize: 14,
       color: colors.text.primary,
-      marginRight: 10,
+      backgroundColor: colors.surfaceVariant,
     },
     saveBtn: {
       height: 44,
@@ -430,7 +529,6 @@ const createStyles = (colors: typeof lightColors) =>
       fontSize: 14,
       color: "#FFFFFF",
     },
-
     errorText: {
       fontFamily: "Poppins_400Regular",
       fontSize: 13,

@@ -5,30 +5,38 @@ export const useRegisterApi = () => {
   const { request } = useApi()
 
   const register = async (data: RegisterData) => {
-    // ✅ Converter workoutDays para array de booleanos
     const boolDays = Array(7).fill(false)
     data.workoutDays.forEach(d => {
       if (d >= 0 && d < 7) boolDays[d] = true
     })
 
+    const mappedRole =
+      data.role === 'personal' ? 'professor' : data.role || 'comum'
+    const validSubscriptions = ['free', 'basic', 'premium']
+    const mappedSubscription = validSubscriptions.includes(data.subscriptionType)
+      ? data.subscriptionType
+      : 'premium'
+
     const payload = {
       email: data.email,
       password: data.password,
-      confirmPassword: data.password, // Adicionado
+      confirmPassword: data.password,
       name: data.name,
-      birthYear: data.birthYear, // Enviar como string (não converter!)
-      heightCm: data.heightCm,
-      weightKg: data.weightKg,
-      desiredWeightKg: data.desiredWeightKg,
-      gender: data.gender,
-      fitnessGoal: 'condicionamento_fisico', // Valor padrão
-      experienceLevel: data.experienceLevel, // Campo correto
-      activityLevel: 'moderado', // Valor padrão (ajuste conforme necessário)
-      role: data.role || 'comum', // Adicionado
-      subscriptionType: data.subscriptionType,
+      birthYear: data.birthYear || '1990-01-01',
+      heightCm: Number(data.heightCm) || 170,
+      weightKg: Number(data.weightKg) || 70,
+      desiredWeightKg: data.desiredWeightKg
+        ? Number(data.desiredWeightKg)
+        : null,
+      gender: data.gender || 'outro',
+      fitnessGoal: 'condicionamento_fisico',
+      experienceLevel: data.experienceLevel || 'iniciante',
+      activityLevel: 'moderado',
+      role: mappedRole,
+      subscriptionType: mappedSubscription,
       hydrationReminder: data.hydrationReminder,
       hydrationTime: data.hydrationTime || null,
-      modalities: data.modalities, // Enviar array completo
+      modalities: data.modalities,
       workoutDays: data.workoutDays,
       workoutTime: data.workoutTime,
       workoutSchedule: {

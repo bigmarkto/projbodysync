@@ -13,25 +13,25 @@ import {
   PlanExerciseInput,
 } from './workout.types'
 
-// Erros de domínio (o controller mapeia para HTTP)
 export class PlanNotFoundError extends Error {
   constructor() {
     super('Plano não encontrado')
   }
 }
 export class ValidationError extends Error {}
-export class SubscriptionLimitError extends Error {} // → 403
+export class SubscriptionLimitError extends Error {}
 
-// Limite de planos do plano Free (comum). Premium é ilimitado.
 const FREE_PLAN_LIMIT = 2
 
-// Calcula elegibilidade e limites a partir de role + assinatura
 async function computeEligibility(
   userId: string,
-  used: number
+  used: number,
+  queryable: { query: typeof db.query } = db,
+  forUpdate: boolean = false
 ): Promise<PlanEligibility> {
-  const r = await db.query(
-    'SELECT role, subscription_type FROM user_profiles WHERE user_id = $1',
+  const lockClause = forUpdate ? ' FOR UPDATE' : ''
+  const r = await queryable.query(
+    `SELECT role, subscription_type FROM user_profiles WHERE user_id = $1${lockClause}`,
     [userId]
   )
   const role: string = r.rows[0]?.role ?? 'comum'
@@ -48,9 +48,9 @@ async function computeEligibility(
     reason =
       'O plano Basic é exclusivo para personais e não inclui planos de treino.'
   } else if (subscriptionType === 'premium') {
-    limit = null // ilimitado
+    limit = null
   } else {
-    limit = FREE_PLAN_LIMIT // free
+    limit = FREE_PLAN_LIMIT
   }
 
   let canCreate: boolean
@@ -68,15 +68,17 @@ async function computeEligibility(
   return { role, subscriptionType, limit, used, canCreate, reason }
 }
 
-async function countPlans(userId: string): Promise<number> {
-  const r = await db.query(
+async function countPlans(
+  userId: string,
+  queryable: { query: typeof db.query } = db
+): Promise<number> {
+  const r = await queryable.query(
     'SELECT COUNT(*)::int AS total FROM workout_plans WHERE user_id = $1',
     [userId]
   )
   return r.rows[0].total
 }
 
-// Valida a lista de exercícios enviada e confere se todos existem no catálogo
 async function validateExercises(exercises: PlanExerciseInput[]): Promise<void> {
   for (const [i, ex] of exercises.entries()) {
     if (!Number.isInteger(ex.exerciseId)) {
@@ -106,7 +108,6 @@ async function validateExercises(exercises: PlanExerciseInput[]): Promise<void> 
   }
 }
 
-// Insere os exercícios do plano preservando a ordem recebida
 async function insertPlanExercises(
   client: any,
   planId: number,
@@ -123,7 +124,6 @@ async function insertPlanExercises(
 }
 
 export const workoutService = {
-  // Lista os planos do usuário (resumo, com contagem de exercícios)
   async listByUser(userId: string): Promise<WorkoutPlanSummary[]> {
     const result = await db.query(
       `SELECT
@@ -141,20 +141,17 @@ export const workoutService = {
     return result.rows as WorkoutPlanSummary[]
   },
 
-  // Lista + metadados de elegibilidade/limites (para a tela de planos)
   async listWithMeta(userId: string): Promise<WorkoutPlansResult> {
     const plans = await this.listByUser(userId)
     const meta = await computeEligibility(userId, plans.length)
     return { plans, meta }
   },
 
-  // Elegibilidade isolada (usada nas checagens de create/generate)
   async getEligibility(userId: string): Promise<PlanEligibility> {
     const used = await countPlans(userId)
     return computeEligibility(userId, used)
   },
 
-  // Gera um rascunho de plano com base no perfil (NÃO persiste)
   async generateDraft(userId: string): Promise<WorkoutPlanDraft> {
     const eligibility = await this.getEligibility(userId)
     if (!eligibility.canCreate) {
@@ -163,7 +160,6 @@ export const workoutService = {
       )
     }
 
-    // Perfil que alimenta a recomendação
     const profileRes = await db.query(
       `SELECT fitness_goal AS "fitnessGoal",
               experience_level AS "experienceLevel",
@@ -183,7 +179,6 @@ export const workoutService = {
     const scheme = planGenerator.schemeFor(goal)
     const count = planGenerator.exerciseCount(profile)
 
-    // Candidatos: prioriza exercícios com imagem; cai para todos se não houver
     let candidatesRes = await db.query(
       `SELECT id, category FROM exercises
        WHERE image_url IS NOT NULL
@@ -204,7 +199,7 @@ export const workoutService = {
     const details = await exerciseService.listByIds(pickedIds)
 
     const exercises = details.map((e, i) => ({
-      id: 0, // rascunho ainda não persistido
+      id: 0,
       exerciseId: e.id,
       sets: scheme.sets,
       reps: scheme.reps,
@@ -225,7 +220,6 @@ export const workoutService = {
     }
   },
 
-  // Detalhe de um plano (com exercícios e dados do catálogo)
   async getById(userId: string, planId: number): Promise<WorkoutPlan> {
     const planResult = await db.query(
       `SELECT id, user_id AS "userId", name, created_at AS "createdAt"
@@ -271,7 +265,6 @@ export const workoutService = {
     return { ...plan, exercises: exResult.rows }
   },
 
-  // Cria um plano com seus exercícios (transação)
   async create(
     userId: string,
     data: CreatePlanRequest
@@ -280,20 +273,25 @@ export const workoutService = {
       throw new ValidationError('O nome do plano é obrigatório')
     }
 
-    // Aplica o limite por tipo de conta/assinatura
-    const eligibility = await this.getEligibility(userId)
-    if (!eligibility.canCreate) {
-      throw new SubscriptionLimitError(
-        eligibility.reason ?? 'Não é possível criar mais planos nesta conta.'
-      )
-    }
-
     const exercises = data.exercises ?? []
     await validateExercises(exercises)
 
     const client = await db.connect()
     try {
       await client.query('BEGIN')
+
+      // Trava a linha do perfil e conta os planos dentro da transação (previne TOCTOU)
+      await client.query(
+        'SELECT user_id FROM user_profiles WHERE user_id = $1 FOR UPDATE',
+        [userId]
+      )
+      const used = await countPlans(userId, client)
+      const eligibility = await computeEligibility(userId, used, client, false)
+      if (!eligibility.canCreate) {
+        throw new SubscriptionLimitError(
+          eligibility.reason ?? 'Não é possível criar mais planos nesta conta.'
+        )
+      }
 
       const planResult = await client.query(
         `INSERT INTO workout_plans (user_id, name) VALUES ($1, $2) RETURNING id`,
@@ -313,13 +311,11 @@ export const workoutService = {
     }
   },
 
-  // Atualiza nome e/ou substitui os exercícios (transação)
   async update(
     userId: string,
     planId: number,
     data: UpdatePlanRequest
   ): Promise<WorkoutPlan> {
-    // Confere posse
     const owns = await db.query(
       'SELECT id FROM workout_plans WHERE id = $1 AND user_id = $2',
       [planId, userId]
@@ -346,7 +342,6 @@ export const workoutService = {
         )
       }
 
-      // Substitui os exercícios por completo quando enviados
       if (data.exercises) {
         await client.query('DELETE FROM plan_exercises WHERE plan_id = $1', [
           planId,
@@ -364,7 +359,6 @@ export const workoutService = {
     }
   },
 
-  // Remove um plano e seus exercícios (transação)
   async remove(userId: string, planId: number): Promise<void> {
     const owns = await db.query(
       'SELECT id FROM workout_plans WHERE id = $1 AND user_id = $2',

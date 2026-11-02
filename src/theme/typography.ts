@@ -21,6 +21,12 @@ export default {
     semibold: "Poppins_600SemiBold",
     bold: "Poppins_700Bold",
   },
+  fontWeight: {
+    regular: "400",
+    medium: "500",
+    semibold: "600",
+    bold: "700",
+  },
   variants: {
     h1: {
       fontSize: "4xl",

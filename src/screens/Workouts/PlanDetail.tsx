@@ -29,29 +29,56 @@ const PlanDetail = ({ plan, onStart, onEdit, onBack }: Props) => {
 
   return (
     <View style={styles.container}>
+      {/* Top Header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        <TouchableOpacity
+          onPress={onBack}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.iconBtn}
+        >
+          <Ionicons name="arrow-back" size={20} color={colors.text.primary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="create-outline" size={22} color="#FFFFFF" />
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          Detalhes do Treino
+        </Text>
+        <TouchableOpacity
+          onPress={onEdit}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.iconBtn}
+        >
+          <Ionicons name="create-outline" size={20} color={colors.text.primary} />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.headerBody}>
+      {/* Plan Hero Card */}
+      <View style={styles.heroBox}>
         <Text style={styles.planName}>{plan.name}</Text>
-        <Text style={styles.planMeta}>
-          {plan.exercises.length} exercícios · {totalSets} séries
-        </Text>
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <Ionicons name="barbell-outline" size={14} color={colors.primary} />
+            <Text style={styles.metaChipText}>
+              {plan.exercises.length} {plan.exercises.length === 1 ? "exercício" : "exercícios"}
+            </Text>
+          </View>
+          <View style={styles.metaChip}>
+            <Ionicons name="repeat-outline" size={14} color={colors.info} />
+            <Text style={styles.metaChipText}>{totalSets} séries no total</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 90 }}
         showsVerticalScrollIndicator={false}
       >
+        <Text style={styles.sectionTitle}>Sequência de Exercícios</Text>
+
         {plan.exercises.map((ex, i) => (
           <View key={`${ex.exerciseId}-${i}`} style={styles.exRow}>
+            <View style={styles.orderBadge}>
+              <Text style={styles.orderBadgeText}>{i + 1}</Text>
+            </View>
             <View style={styles.thumb}>
               {ex.exercise?.imageUrl ? (
                 <Image source={{ uri: ex.exercise.imageUrl }} style={styles.thumbImg} />
@@ -67,17 +94,20 @@ const PlanDetail = ({ plan, onStart, onEdit, onBack }: Props) => {
                 <Text style={styles.exCat}>{ex.exercise.category}</Text>
               )}
             </View>
-            <Text style={styles.exReps}>
-              {ex.sets} × {ex.reps}
-            </Text>
+            <View style={styles.setsPill}>
+              <Text style={styles.exReps}>
+                {ex.sets} <Text style={styles.exRepsMuted}>×</Text> {ex.reps}
+              </Text>
+            </View>
           </View>
         ))}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity style={styles.startBtn} onPress={onStart} activeOpacity={0.85}>
+      {/* Sticky Bottom Action */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        <TouchableOpacity style={styles.startBtn} onPress={onStart} activeOpacity={0.88}>
           <Ionicons name="play" size={22} color="#FFFFFF" />
-          <Text style={styles.startText}>Começar treino</Text>
+          <Text style={styles.startText}>Começar treino agora</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -91,42 +121,99 @@ const createStyles = (colors: typeof lightColors) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      backgroundColor: colors.primary,
       paddingHorizontal: 16,
+      paddingBottom: 14,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
     },
-    headerBody: {
-      backgroundColor: colors.primary,
+    headerTitle: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 16,
+      color: colors.text.primary,
+    },
+    iconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    heroBox: {
+      backgroundColor: colors.card,
       paddingHorizontal: 20,
-      paddingBottom: 20,
-      borderBottomLeftRadius: 24,
-      borderBottomRightRadius: 24,
+      paddingVertical: 18,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
     },
     planName: {
       fontFamily: "Poppins_700Bold",
       fontSize: 22,
-      color: "#FFFFFF",
+      color: colors.text.primary,
+      marginBottom: 8,
     },
-    planMeta: {
+    metaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    metaChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surfaceVariant,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 10,
+      gap: 5,
+    },
+    metaChipText: {
       fontFamily: "Poppins_500Medium",
-      fontSize: 13,
-      color: "rgba(255,255,255,0.9)",
-      marginTop: 4,
+      fontSize: 12,
+      color: colors.text.secondary,
     },
     scroll: { flex: 1 },
+    sectionTitle: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 14,
+      color: colors.text.secondary,
+      marginBottom: 12,
+    },
     exRow: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 14,
+      backgroundColor: colors.card,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: colors.border,
       padding: 12,
       marginBottom: 10,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04,
+      shadowRadius: 4,
+      elevation: 1,
+    },
+    orderBadge: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceVariant,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 8,
+    },
+    orderBadgeText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 11,
+      color: colors.text.tertiary,
     },
     thumb: {
-      width: 48,
-      height: 48,
-      borderRadius: 10,
+      width: 46,
+      height: 46,
+      borderRadius: 12,
       backgroundColor: colors.surfaceVariant,
       alignItems: "center",
       justifyContent: "center",
@@ -135,7 +222,7 @@ const createStyles = (colors: typeof lightColors) =>
     },
     thumbImg: { width: "100%", height: "100%" },
     exName: {
-      fontFamily: "Poppins_500Medium",
+      fontFamily: "Poppins_600SemiBold",
       fontSize: 14,
       color: colors.text.primary,
     },
@@ -144,16 +231,25 @@ const createStyles = (colors: typeof lightColors) =>
       fontSize: 12,
       color: colors.text.tertiary,
     },
+    setsPill: {
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 10,
+    },
     exReps: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 15,
+      fontSize: 14,
       color: colors.primary,
-      marginLeft: 8,
+    },
+    exRepsMuted: {
+      color: colors.text.tertiary,
+      fontFamily: "Poppins_400Regular",
     },
     footer: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 18,
       paddingTop: 12,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.background,
       borderTopWidth: 1,
       borderTopColor: colors.border,
     },
@@ -161,15 +257,20 @@ const createStyles = (colors: typeof lightColors) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      height: 54,
-      borderRadius: 14,
+      height: 52,
+      borderRadius: 16,
       backgroundColor: colors.primary,
+      gap: 8,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
     },
     startText: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 16,
       color: "#FFFFFF",
-      marginLeft: 8,
     },
   });
 

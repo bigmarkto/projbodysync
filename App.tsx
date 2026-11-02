@@ -3,10 +3,6 @@ import React from "react";
 import { StatusBar } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { GluestackUIProvider } from "@gluestack-ui/themed";
-import { config } from "./src/theme/gluestackConfig";
-import { PaperProvider } from "react-native-paper";
-import paperTheme from "./src/theme/paperTheme";
 import ThemeProvider from "./src/context/ThemeProvider";
 import { AuthProvider } from "./src/context/AuthContext";
 import RootNavigator from "./src/navigation/RootNavigator";
@@ -36,19 +32,15 @@ export default function App() {
   if (!fontsLoaded) return null;
 
   return (
-    <GluestackUIProvider config={config}>
-      <SafeAreaProvider>
-        <PaperProvider theme={paperTheme}>
-          <ThemeProvider>
-            <AuthProvider>
-              <NavigationContainer>
-                <StatusBar backgroundColor="#F96D10" barStyle="light-content" />
-                <RootNavigator />
-              </NavigationContainer>
-            </AuthProvider>
-          </ThemeProvider>
-        </PaperProvider>
-      </SafeAreaProvider>
-    </GluestackUIProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <NavigationContainer>
+            <StatusBar backgroundColor="#F96D10" barStyle="light-content" />
+            <RootNavigator />
+          </NavigationContainer>
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

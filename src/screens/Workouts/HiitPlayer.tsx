@@ -27,9 +27,9 @@ const fmt = (s: number) => {
 };
 
 const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [index, setIndex] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(script[0]?.durationSec ?? 60);
@@ -38,22 +38,25 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
 
   const segment = script[index];
   const isWork = segment?.type === "work";
-  const accent = isWork ? colors.primary : colors.info;
+  const bgThemeColor = isWork
+    ? isDark ? "#1A1009" : "#FFF7ED"
+    : isDark ? "#081524" : "#F0F9FF";
+  const accentColor = isWork ? colors.primary : colors.info;
 
-  // Fade-in + leve subida a cada troca de segmento
+  // Fade-in a cada troca de segmento
   const fade = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     fade.setValue(0);
     Animated.timing(fade, {
       toValue: 1,
-      duration: 450,
+      duration: 350,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [index, fade]);
   const translateY = fade.interpolate({
     inputRange: [0, 1],
-    outputRange: [18, 0],
+    outputRange: [16, 0],
   });
 
   // Tique de 1s
@@ -115,12 +118,12 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
     return (
       <View style={[styles.container, styles.center]}>
         <View style={styles.doneCircle}>
-          <Ionicons name="checkmark" size={64} color="#FFFFFF" />
+          <Ionicons name="checkmark" size={60} color="#FFFFFF" />
         </View>
         <Text style={styles.doneTitle}>Cardio concluído!</Text>
-        <Text style={styles.doneSub}>{workTotal} minutos de exercício 🔥</Text>
-        <TouchableOpacity style={styles.doneBtn} onPress={onExit}>
-          <Text style={styles.doneBtnText}>Voltar aos planos</Text>
+        <Text style={styles.doneSub}>{workTotal} minutos de alta intensidade 🔥</Text>
+        <TouchableOpacity style={styles.doneBtn} onPress={onExit} activeOpacity={0.88}>
+          <Text style={styles.doneBtnText}>Finalizar e voltar</Text>
         </TouchableOpacity>
       </View>
     );
@@ -130,15 +133,22 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
   const segProgress = segment ? 1 - secondsLeft / segment.durationSec : 0;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: accent }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: bgThemeColor }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={confirmExit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="close" size={26} color="#FFFFFF" />
+        <TouchableOpacity
+          onPress={confirmExit}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.closeBtn}
+        >
+          <Ionicons name="close" size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isWork ? `Exercício ${workDone + 1}/${workTotal}` : "Descanso"}
-        </Text>
-        <View style={{ width: 26 }} />
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>
+            {isWork ? `Ciclo ${workDone + 1} de ${workTotal}` : "Recuperação"}
+          </Text>
+        </View>
+        <View style={{ width: 40 }} />
       </View>
 
       <View style={styles.body}>
@@ -149,12 +159,22 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
             transform: [{ translateY }],
           }}
         >
-          <Text style={styles.phaseLabel}>{isWork ? "AGORA" : "DESCANSE"}</Text>
+          {/* Phase Badge */}
+          <View style={[styles.phaseBadge, { backgroundColor: isWork ? colors.primaryLight : colors.infoLight }]}>
+            <Ionicons
+              name={isWork ? "flame" : "water"}
+              size={14}
+              color={accentColor}
+            />
+            <Text style={[styles.phaseLabel, { color: accentColor }]}>
+              {isWork ? "ATIVIDADE MÁXIMA" : "DESCANSO / HIDRATAÇÃO"}
+            </Text>
+          </View>
 
-          <View style={styles.exIconWrap}>
+          <View style={[styles.exIconWrap, { backgroundColor: accentColor }]}>
             <Ionicons
               name={isWork ? segment.exercise!.icon : "cafe"}
-              size={40}
+              size={44}
               color="#FFFFFF"
             />
           </View>
@@ -167,140 +187,221 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
             <Text style={styles.instruction}>
               {isWork
                 ? segment.exercise!.instruction
-                : "Fique de pé, respire fundo e relaxe. Beba um gole de água se precisar. Prepare-se para o próximo exercício."}
+                : "Fique de pé, respire fundo e relaxe. Beba um gole de água e se prepare para o próximo disparo."}
             </Text>
           </View>
         </Animated.View>
 
-        <Text style={styles.timer}>{fmt(secondsLeft)}</Text>
+        {/* Big Timer */}
+        <View style={styles.timerWrapper}>
+          <Text style={[styles.timer, { color: accentColor }]}>{fmt(secondsLeft)}</Text>
+        </View>
 
-        {/* Barra do segmento atual */}
+        {/* Progress Bar */}
         <View style={styles.segTrack}>
-          <View style={[styles.segFill, { width: `${segProgress * 100}%` }]} />
+          <View
+            style={[
+              styles.segFill,
+              { width: `${segProgress * 100}%`, backgroundColor: accentColor },
+            ]}
+          />
         </View>
 
         {!!next && (
-          <Text style={styles.nextUp}>
-            A seguir: {next.type === "work" ? next.exercise!.name : "Descanso"}
-          </Text>
+          <View style={styles.nextUpCard}>
+            <Text style={styles.nextUpPrefix}>A SEGUIR:</Text>
+            <Text style={styles.nextUpTitle}>
+              {next.type === "work" ? next.exercise!.name : "Descanso (1 min)"}
+            </Text>
+          </View>
         )}
       </View>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity style={styles.ctrlBtn} onPress={() => setPaused((p) => !p)}>
-          <Ionicons name={paused ? "play" : "pause"} size={26} color="#FFFFFF" />
+      {/* Floating Tactical Footer Controls */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 18 }]}>
+        <TouchableOpacity
+          style={[styles.ctrlBtn, { backgroundColor: paused ? colors.primary : colors.card }]}
+          onPress={() => setPaused((p) => !p)}
+          activeOpacity={0.85}
+        >
+          <Ionicons
+            name={paused ? "play" : "pause"}
+            size={26}
+            color={paused ? "#FFFFFF" : colors.text.primary}
+          />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.ctrlBtn} onPress={skip}>
-          <Ionicons name="play-skip-forward" size={24} color="#FFFFFF" />
+        <TouchableOpacity
+          style={[styles.ctrlBtn, { backgroundColor: colors.card }]}
+          onPress={skip}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="play-skip-forward" size={24} color={colors.text.primary} />
         </TouchableOpacity>
       </View>
     </View>
   );
 };
 
-const createStyles = (colors: typeof lightColors) =>
+const createStyles = (colors: typeof lightColors, isDark: boolean) =>
   StyleSheet.create({
     container: { flex: 1 },
-    center: {
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 24,
-      backgroundColor: colors.background,
-    },
+    center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 16,
+      paddingHorizontal: 18,
       paddingVertical: 12,
     },
+    closeBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerCenter: { alignItems: "center" },
     headerTitle: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 15,
-      color: "#FFFFFF",
+      color: colors.text.primary,
     },
-    body: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
-    phaseLabel: {
-      fontFamily: "Poppins_600SemiBold",
-      fontSize: 14,
-      color: "rgba(255,255,255,0.85)",
-      letterSpacing: 3,
-      marginBottom: 16,
-    },
-    exIconWrap: {
-      width: 76,
-      height: 76,
-      borderRadius: 22,
-      backgroundColor: "rgba(255,255,255,0.2)",
+    body: {
+      flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 14,
+      paddingHorizontal: 24,
+    },
+    phaseBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 16,
+      gap: 6,
+      marginBottom: 16,
+    },
+    phaseLabel: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 12,
+      letterSpacing: 1.2,
+    },
+    exIconWrap: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 10,
+      elevation: 5,
     },
     exName: {
       fontFamily: "Poppins_700Bold",
       fontSize: 26,
-      color: "#FFFFFF",
+      color: colors.text.primary,
       textAlign: "center",
-      marginBottom: 12,
+      marginBottom: 10,
     },
     instructionBox: {
-      backgroundColor: "rgba(255,255,255,0.15)",
+      backgroundColor: colors.card,
       borderRadius: 16,
-      paddingVertical: 14,
-      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      maxWidth: 320,
+      marginBottom: 20,
     },
     instruction: {
       fontFamily: "Poppins_400Regular",
-      fontSize: 15,
-      lineHeight: 22,
-      color: "#FFFFFF",
+      fontSize: 13,
+      color: colors.text.secondary,
       textAlign: "center",
+      lineHeight: 19,
+    },
+    timerWrapper: {
+      marginVertical: 6,
     },
     timer: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 56,
-      color: "#FFFFFF",
-      marginTop: 20,
+      fontSize: 76,
+      letterSpacing: -1,
+      lineHeight: 84,
     },
     segTrack: {
-      width: "100%",
+      width: 260,
       height: 8,
-      borderRadius: 8,
-      backgroundColor: "rgba(255,255,255,0.25)",
+      backgroundColor: colors.surfaceVariant,
+      borderRadius: 4,
       overflow: "hidden",
       marginTop: 8,
+      marginBottom: 18,
     },
-    segFill: { height: 8, borderRadius: 8, backgroundColor: "#FFFFFF" },
-    nextUp: {
-      fontFamily: "Poppins_500Medium",
-      fontSize: 14,
-      color: "rgba(255,255,255,0.9)",
-      marginTop: 24,
+    segFill: {
+      height: "100%",
+      borderRadius: 4,
+    },
+    nextUpCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.card,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    nextUpPrefix: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 11,
+      color: colors.text.tertiary,
+    },
+    nextUpTitle: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 13,
+      color: colors.text.primary,
     },
     footer: {
       flexDirection: "row",
-      alignItems: "center",
       justifyContent: "center",
+      alignItems: "center",
       gap: 20,
-      paddingTop: 12,
+      paddingTop: 10,
     },
     ctrlBtn: {
       width: 64,
       height: 64,
       borderRadius: 32,
-      backgroundColor: "rgba(255,255,255,0.25)",
+      borderWidth: 1.5,
+      borderColor: colors.border,
       alignItems: "center",
       justifyContent: "center",
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
     },
-
     doneCircle: {
-      width: 120,
-      height: 120,
-      borderRadius: 60,
+      width: 110,
+      height: 110,
+      borderRadius: 55,
       backgroundColor: colors.success,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 24,
+      marginBottom: 20,
+      shadowColor: colors.success,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 6,
     },
     doneTitle: {
       fontFamily: "Poppins_700Bold",
@@ -313,14 +414,20 @@ const createStyles = (colors: typeof lightColors) =>
       color: colors.text.secondary,
       marginTop: 6,
       marginBottom: 32,
+      textAlign: "center",
     },
     doneBtn: {
       height: 52,
-      paddingHorizontal: 32,
-      borderRadius: 14,
+      paddingHorizontal: 36,
+      borderRadius: 16,
       backgroundColor: colors.primary,
       alignItems: "center",
       justifyContent: "center",
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
     },
     doneBtnText: {
       fontFamily: "Poppins_600SemiBold",

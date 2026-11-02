@@ -37,10 +37,10 @@ const SUB_LABELS: Record<string, string> = {
 };
 
 const WorkoutsScreen = () => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { request } = useApi();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [meta, setMeta] = useState<PlanMeta | null>(null);
@@ -78,18 +78,15 @@ const WorkoutsScreen = () => {
 
   useEffect(() => {
     loadList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadList]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadList();
   }, [loadList]);
 
-  // Gera rascunho com a "IA" e abre no editor
   const onGenerate = useCallback(async () => {
     if (genPreparing) return;
-    // Abre a tela de carregamento animada e gera o plano em paralelo
     setError(null);
     setGenErr(null);
     setGenDraft(null);
@@ -108,7 +105,6 @@ const WorkoutsScreen = () => {
       );
   }, [genPreparing, request]);
 
-  // Encerra a preparação quando: passaram os 5s E o rascunho chegou (ou falhou)
   useEffect(() => {
     if (!genPreparing || !genMinElapsed) return;
     if (genErr) {
@@ -120,14 +116,12 @@ const WorkoutsScreen = () => {
       setGenPreparing(false);
       setEditing({ id: null, name: genDraft.name, exercises: genDraft.exercises });
     }
-    // senão: 5s já passaram mas a geração ainda não voltou — aguarda
   }, [genPreparing, genMinElapsed, genErr, genDraft]);
 
   const onCreateManual = useCallback(() => {
     setEditing({ id: null, name: "", exercises: [] });
   }, []);
 
-  // Grava a sessão concluída (para as estatísticas). Silencioso em caso de falha.
   const recordSession = useCallback(
     async (planId: number | null, startedAt: string) => {
       try {
@@ -146,7 +140,6 @@ const WorkoutsScreen = () => {
     [request],
   );
 
-  // Abre o detalhe do plano (com o botão "Começar treino")
   const onOpenPlan = useCallback(
     async (id: number) => {
       try {
@@ -161,13 +154,11 @@ const WorkoutsScreen = () => {
     [request],
   );
 
-  // Detalhe → "Começar treino" → vai direto ao player (sem carregamento)
   const onStartPlan = useCallback((plan: PlanDetail) => {
     setDetailPlan(null);
     setRunningPlan(plan);
   }, []);
 
-  // Setup do HIIT → "Iniciar" → vai direto ao player de cardio
   const onStartHiit = useCallback((script: HiitSegment[]) => {
     setHiitSetup(false);
     setHiitScript(script);
@@ -195,7 +186,6 @@ const WorkoutsScreen = () => {
     [request, loadList],
   );
 
-  // ─── Modos de tela cheia (ordem importa) ────────────────────────────────────
   if (editing) {
     return (
       <PlanEditor
@@ -209,7 +199,6 @@ const WorkoutsScreen = () => {
     );
   }
 
-  // Tela de carregamento animada — apenas para a GERAÇÃO do plano por IA
   if (genPreparing) {
     return (
       <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setGenPreparing(false)}>
@@ -224,8 +213,6 @@ const WorkoutsScreen = () => {
     );
   }
 
-  // Modos de treino imersivos: vão num Modal full-screen, que cobre a barra
-  // de abas e todo o chrome → evita toques acidentais durante o treino.
   if (runningPlan) {
     return (
       <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setRunningPlan(null)}>
@@ -282,37 +269,32 @@ const WorkoutsScreen = () => {
     );
   }
 
-  // ─── Cabeçalho ──────────────────────────────────────────────────────────────
-  const renderHeader = () => {
-    const limitText =
-      meta == null
-        ? ""
-        : meta.limit === null
-          ? "planos ilimitados"
-          : `${meta.used}/${meta.limit} planos`;
-    return (
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.headerTitle}>Meus planos</Text>
-        {meta && (
-          <View style={styles.subRow}>
-            <View style={styles.subBadge}>
-              <Ionicons name="star" size={12} color="#FFFFFF" />
-              <Text style={styles.subBadgeText}>
-                {SUB_LABELS[meta.subscriptionType] ?? meta.subscriptionType}
-              </Text>
-            </View>
-            {!!limitText && <Text style={styles.limitText}>{limitText}</Text>}
-          </View>
-        )}
-      </View>
-    );
-  };
+  const limitText =
+    meta == null
+      ? ""
+      : meta.limit === null
+        ? "planos ilimitados"
+        : `${meta.used}/${meta.limit} planos`;
 
   const canCreate = meta?.canCreate ?? false;
 
   return (
     <View style={styles.screen}>
-      {renderHeader()}
+      {/* Top Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerTitle}>Treinos & Planos</Text>
+          {meta && (
+            <View style={styles.subBadge}>
+              <Ionicons name="star" size={12} color={colors.primary} />
+              <Text style={styles.subBadgeText}>
+                {SUB_LABELS[meta.subscriptionType] ?? meta.subscriptionType}
+              </Text>
+            </View>
+          )}
+        </View>
+        {!!limitText && <Text style={styles.limitText}>{limitText}</Text>}
+      </View>
 
       {loading ? (
         <View style={styles.center}>
@@ -321,7 +303,7 @@ const WorkoutsScreen = () => {
       ) : (
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -362,26 +344,34 @@ const WorkoutsScreen = () => {
               <Ionicons name="flame" size={24} color="#FFFFFF" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.hiitTitle}>Cardio HIIT</Text>
+              <View style={styles.hiitBadgeRow}>
+                <Text style={styles.hiitTitle}>Cardio HIIT</Text>
+                <View style={styles.cardioPill}>
+                  <Text style={styles.cardioPillText}>Livre</Text>
+                </View>
+              </View>
               <Text style={styles.hiitSub}>
-                Treino rápido de 10 a 30 min, sem equipamento
+                Treino por intervalos de 10 a 30 min sem equipamento
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.primary} />
           </TouchableOpacity>
 
-          <Text style={styles.sectionLabel}>Meus planos</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>Seus Planos de Musculação</Text>
+            <Text style={styles.sectionCount}>{plans.length}</Text>
+          </View>
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           {/* Lista de planos */}
           {plans.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="clipboard-outline" size={40} color={colors.text.tertiary} />
+              <Ionicons name="clipboard-outline" size={44} color={colors.text.tertiary} />
               <Text style={styles.emptyTitle}>Nenhum plano ainda</Text>
               {canCreate && (
                 <Text style={styles.emptySub}>
-                  Gere um plano com IA ou crie um do zero.
+                  Gere um plano com IA ou crie seu próprio treino personalizado.
                 </Text>
               )}
             </View>
@@ -407,7 +397,8 @@ const WorkoutsScreen = () => {
                 </View>
                 <TouchableOpacity
                   onPress={() => onDelete(plan)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  style={styles.trashBtn}
                 >
                   <Ionicons name="trash-outline" size={18} color={colors.text.tertiary} />
                 </TouchableOpacity>
@@ -421,45 +412,49 @@ const WorkoutsScreen = () => {
   );
 };
 
-const createStyles = (colors: typeof lightColors) =>
+const createStyles = (colors: typeof lightColors, isDark: boolean) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     center: { flex: 1, alignItems: "center", justifyContent: "center" },
     scroll: { flex: 1 },
-    content: { padding: 16 },
+    content: { padding: 18 },
 
     header: {
-      backgroundColor: colors.primary,
       paddingHorizontal: 20,
-      paddingBottom: 20,
-      borderBottomLeftRadius: 24,
-      borderBottomRightRadius: 24,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    headerTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
     headerTitle: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 22,
-      color: "#FFFFFF",
+      fontSize: 24,
+      color: colors.text.primary,
     },
-    subRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
     subBadge: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.22)",
-      borderRadius: 20,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 12,
       paddingHorizontal: 10,
-      paddingVertical: 4,
+      paddingVertical: 5,
+      gap: 4,
     },
     subBadgeText: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 12,
-      color: "#FFFFFF",
-      marginLeft: 4,
+      color: colors.primary,
     },
     limitText: {
-      fontFamily: "Poppins_500Medium",
-      fontSize: 13,
-      color: "rgba(255,255,255,0.9)",
-      marginLeft: 10,
+      fontFamily: "Poppins_400Regular",
+      fontSize: 12,
+      color: colors.text.tertiary,
+      marginTop: 4,
     },
 
     actions: { marginBottom: 18 },
@@ -467,10 +462,15 @@ const createStyles = (colors: typeof lightColors) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      height: 52,
+      height: 50,
       borderRadius: 14,
       backgroundColor: colors.primary,
       marginBottom: 10,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      elevation: 3,
     },
     aiBtnText: {
       fontFamily: "Poppins_600SemiBold",
@@ -482,29 +482,33 @@ const createStyles = (colors: typeof lightColors) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      height: 50,
+      height: 48,
       borderRadius: 14,
       borderWidth: 1.5,
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
     },
     manualBtnText: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 14,
-      color: colors.primary,
+      color: colors.text.primary,
       marginLeft: 6,
     },
-    disabled: { opacity: 0.7 },
 
     hiitCard: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 14,
+      padding: 16,
       marginBottom: 20,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      elevation: 2,
     },
     hiitIcon: {
       width: 48,
@@ -513,33 +517,60 @@ const createStyles = (colors: typeof lightColors) =>
       backgroundColor: colors.primary,
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 12,
+      marginRight: 14,
+    },
+    hiitBadgeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
     },
     hiitTitle: {
       fontFamily: "Poppins_600SemiBold",
-      fontSize: 15,
+      fontSize: 16,
       color: colors.text.primary,
+    },
+    cardioPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 8,
+      backgroundColor: colors.successLight,
+    },
+    cardioPillText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 11,
+      color: colors.success,
     },
     hiitSub: {
       fontFamily: "Poppins_400Regular",
       fontSize: 12,
-      color: colors.text.tertiary,
+      color: colors.text.secondary,
       marginTop: 2,
+    },
+
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 12,
     },
     sectionLabel: {
       fontFamily: "Poppins_600SemiBold",
-      fontSize: 14,
-      color: colors.text.secondary,
-      marginBottom: 12,
+      fontSize: 15,
+      color: colors.text.primary,
+    },
+    sectionCount: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 13,
+      color: colors.text.tertiary,
     },
 
     lockBox: {
       flexDirection: "row",
       alignItems: "flex-start",
       backgroundColor: colors.warningLight,
-      borderRadius: 12,
+      borderRadius: 14,
       borderWidth: 1,
-      borderColor: colors.warning + "55",
+      borderColor: colors.warning + "40",
       padding: 14,
       marginBottom: 18,
     },
@@ -570,17 +601,23 @@ const createStyles = (colors: typeof lightColors) =>
       fontSize: 13,
       color: colors.text.tertiary,
       marginTop: 4,
+      textAlign: "center",
     },
 
     planCard: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: colors.border,
       padding: 14,
-      marginBottom: 10,
+      marginBottom: 12,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      elevation: 2,
     },
     planIcon: {
       width: 44,
@@ -601,6 +638,10 @@ const createStyles = (colors: typeof lightColors) =>
       fontSize: 12,
       color: colors.text.tertiary,
       marginTop: 2,
+    },
+    trashBtn: {
+      padding: 6,
+      borderRadius: 8,
     },
   });
 

@@ -1,20 +1,22 @@
 // src/modules/session/session.service.ts
 import { db } from '../../config/database'
-import { CreateSessionRequest, DayStat, WorkoutStats } from './session.types'
+import type { CreateSessionRequest, DayStat, WorkoutStats } from './session.types'
 
 const WEEK_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-// Chave YYYY-MM-DD no fuso local do servidor
-function dateKey(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+// Chave YYYY-MM-DD no fuso America/Sao_Paulo (independente do fuso do servidor)
+export function dateKey(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d)
 }
 
-function addDays(base: Date, n: number): Date {
-  const d = new Date(base)
-  d.setDate(d.getDate() + n)
+function addDaysUTC(base: Date, n: number): Date {
+  const d = new Date(base.getTime())
+  d.setUTCDate(d.getUTCDate() + n)
   return d
 }
 
@@ -41,7 +43,6 @@ export const sessionService = {
 
   // Estatísticas de treino do usuário
   async getStats(userId: string): Promise<WorkoutStats> {
-    // Agenda (para saber dias planejados e faltas)
     const profileRes = await db.query(
       'SELECT workout_schedule FROM user_profiles WHERE user_id = $1',
       [userId]
@@ -49,7 +50,6 @@ export const sessionService = {
     const days = scheduledDays(profileRes.rows[0]?.workout_schedule)
     const scheduledPerWeek = days.filter(Boolean).length
 
-    // Total e duração média (todas as sessões concluídas)
     const aggRes = await db.query(
       `SELECT
          COUNT(*)::int AS total,
@@ -63,7 +63,6 @@ export const sessionService = {
     const avgDurationMin =
       avgSeconds != null ? Math.round(avgSeconds / 60) : null
 
-    // Datas concluídas (últimos 120 dias) para streak/aderência/semana
     const sessRes = await db.query(
       `SELECT finished_at
        FROM workout_sessions
@@ -77,21 +76,21 @@ export const sessionService = {
       doneDates.add(dateKey(new Date(row.finished_at)))
     }
 
-    const today = new Date()
-    const todayKey = dateKey(today)
-    const todayWeekday = today.getDay()
+    const todayKey = dateKey(new Date())
+    const todayAnchor = new Date(`${todayKey}T12:00:00Z`)
+    const todayWeekday = todayAnchor.getUTCDay()
 
-    // Semana atual (domingo → sábado)
-    const weekStart = addDays(today, -todayWeekday)
+    // Semana atual (domingo → sábado) ancorada no fuso de São Paulo
+    const weekStart = addDaysUTC(todayAnchor, -todayWeekday)
     const week: DayStat[] = []
     let thisWeek = 0
     for (let i = 0; i < 7; i++) {
-      const d = addDays(weekStart, i)
-      const key = dateKey(d)
+      const d = addDaysUTC(weekStart, i)
+      const key = d.toISOString().slice(0, 10)
       const done = doneDates.has(key)
       const scheduled = days[i]
       const isToday = key === todayKey
-      const isFuture = d > today && !isToday
+      const isFuture = key > todayKey
       if (done) thisWeek++
       week.push({
         date: key,
@@ -106,18 +105,17 @@ export const sessionService = {
     }
 
     // Streak: dias agendados consecutivos (voltando de hoje) sem falhar.
-    // Hoje agendado e ainda não feito não quebra (o dia não acabou).
     let streak = 0
     for (let i = 0; i < 90; i++) {
-      const d = addDays(today, -i)
-      const wd = d.getDay()
-      if (!days[wd]) continue // dia sem treino agendado: ignora
-      const key = dateKey(d)
+      const d = addDaysUTC(todayAnchor, -i)
+      const wd = d.getUTCDay()
+      if (!days[wd]) continue
+      const key = d.toISOString().slice(0, 10)
       const done = doneDates.has(key)
       if (done) {
         streak++
       } else if (i === 0) {
-        continue // hoje ainda pode ser feito
+        continue
       } else {
         break
       }
@@ -127,10 +125,10 @@ export const sessionService = {
     let scheduledCount = 0
     let doneScheduled = 0
     for (let i = 1; i <= 30; i++) {
-      const d = addDays(today, -i)
-      if (!days[d.getDay()]) continue
+      const d = addDaysUTC(todayAnchor, -i)
+      if (!days[d.getUTCDay()]) continue
       scheduledCount++
-      if (doneDates.has(dateKey(d))) doneScheduled++
+      if (doneDates.has(d.toISOString().slice(0, 10))) doneScheduled++
     }
     const adherencePct =
       scheduledCount > 0

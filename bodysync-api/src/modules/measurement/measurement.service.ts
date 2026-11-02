@@ -1,5 +1,6 @@
 // src/modules/measurement/measurement.service.ts
 import { db } from '../../config/database'
+import { dateKey } from '../session/session.service'
 import {
   CreateMeasurementRequest,
   Measurement,
@@ -11,7 +12,6 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 export const measurementService = {
-  // Registra um novo peso e atualiza o peso atual do perfil
   async create(
     userId: string,
     data: CreateMeasurementRequest
@@ -21,24 +21,41 @@ export const measurementService = {
       throw new Error('Peso inválido')
     }
 
-    const result = await db.query(
-      `INSERT INTO body_measurements (user_id, weight_kg, measured_at)
-       VALUES ($1, $2, COALESCE($3::date, CURRENT_DATE))
-       RETURNING id, weight_kg, to_char(measured_at, 'YYYY-MM-DD') AS measured_at`,
-      [userId, weight, data.measuredAt ?? null]
-    )
+    const measuredAt = data.measuredAt ?? dateKey()
+    const client = await db.connect()
 
-    // Mantém o peso atual do perfil em sincronia
-    await db.query(
-      'UPDATE user_profiles SET weight_kg = $1, updated_at = NOW() WHERE user_id = $2',
-      [weight, userId]
-    )
+    try {
+      await client.query('BEGIN')
 
-    const row = result.rows[0]
-    return {
-      id: row.id,
-      weightKg: Number(row.weight_kg),
-      measuredAt: row.measured_at,
+      const result = await client.query(
+        `INSERT INTO body_measurements (user_id, weight_kg, measured_at)
+         VALUES ($1, $2, $3::date)
+         RETURNING id, weight_kg, to_char(measured_at, 'YYYY-MM-DD') AS measured_at`,
+        [userId, weight, measuredAt]
+      )
+
+      await client.query(
+        'UPDATE user_profiles SET weight_kg = $1, updated_at = NOW() WHERE user_id = $2',
+        [weight, userId]
+      )
+      await client.query(
+        'UPDATE users SET weight_kg = $1 WHERE id = $2',
+        [weight, userId]
+      )
+
+      await client.query('COMMIT')
+
+      const row = result.rows[0]
+      return {
+        id: row.id,
+        weightKg: Number(row.weight_kg),
+        measuredAt: row.measured_at,
+      }
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
     }
   },
 
@@ -57,7 +74,6 @@ export const measurementService = {
     }))
   },
 
-  // Resumo de progresso rumo à meta
   async getSummary(userId: string): Promise<ProgressSummary> {
     const profileRes = await db.query(
       'SELECT weight_kg, desired_weight_kg FROM user_profiles WHERE user_id = $1',
@@ -101,7 +117,6 @@ export const measurementService = {
     }
   },
 
-  // Define a meta de peso (desired_weight_kg no perfil)
   async setGoal(userId: string, desiredWeightKg: number): Promise<void> {
     const goal = Number(desiredWeightKg)
     if (!goal || goal <= 0 || goal > 500) {
@@ -114,5 +129,9 @@ export const measurementService = {
     if (res.rows.length === 0) {
       throw new Error('Perfil não encontrado')
     }
+    await db.query(
+      'UPDATE users SET desired_weight_kg = $1 WHERE id = $2',
+      [goal, userId]
+    )
   },
 }

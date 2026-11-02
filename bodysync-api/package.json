@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test src/__tests__/audit-fixes.test.ts",
     "dev": "tsx watch src/server.ts",
     "seed": "tsx src/scripts/seed-wger.ts",
     "translate": "tsx src/scripts/translate-exercises.ts",

@@ -71,6 +71,28 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
     outputRange: [14, 0],
   });
 
+  // Anel giratório contínuo no relógio de descanso (idêntico à IA / PreparingScreen)
+  const restSpin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (phase !== "rest") return;
+    restSpin.setValue(0);
+    const spinAnim = Animated.loop(
+      Animated.timing(restSpin, {
+        toValue: 1,
+        duration: 1600,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    spinAnim.start();
+    return () => spinAnim.stop();
+  }, [phase, restSpin]);
+
+  const restSpinDeg = restSpin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
   // Contagem regressiva do descanso
   useEffect(() => {
     if (phase !== "rest" || restLeft <= 0) return;
@@ -163,9 +185,14 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
             <Text style={styles.restLabel}>DESCANSO ATIVO</Text>
           </View>
 
-          <View style={styles.timerCircle}>
-            <Text style={styles.restTimer}>{restLeft}</Text>
-            <Text style={styles.restSec}>segundos</Text>
+          <View style={styles.restLoaderWrap}>
+            <Animated.View
+              style={[styles.restRing, { transform: [{ rotate: restSpinDeg }] }]}
+            />
+            <View style={styles.timerCircle}>
+              <Text style={styles.restTimer}>{restLeft}</Text>
+              <Text style={styles.restSec}>segundos</Text>
+            </View>
           </View>
 
           <Text style={styles.restNext}>{nextLabel}</Text>
@@ -431,16 +458,32 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       color: colors.primary,
       letterSpacing: 1,
     },
+    restLoaderWrap: {
+      width: 204,
+      height: 204,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 24,
+    },
+    restRing: {
+      position: "absolute",
+      width: 204,
+      height: 204,
+      borderRadius: 102,
+      borderWidth: 5,
+      borderColor: colors.primaryLight,
+      borderTopColor: colors.primary,
+      borderRightColor: colors.primary,
+    },
     timerCircle: {
       width: 170,
       height: 170,
       borderRadius: 85,
       backgroundColor: colors.card,
-      borderWidth: 4,
-      borderColor: colors.primary,
+      borderWidth: 1.5,
+      borderColor: colors.border,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 24,
       shadowColor: colors.primary,
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.2,

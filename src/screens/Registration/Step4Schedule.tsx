@@ -137,7 +137,7 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
                   value={data.workoutTime ? new Date(1970,0,1,parseInt(data.workoutTime.split(":")[0]),parseInt(data.workoutTime.split(":")[1])) : new Date()}
                   is24Hour={true}
                   display="spinner"
-                  onChange={(_, selectedDate) => {
+                  onValueChange={(_, selectedDate) => {
                     setShowPicker(false);
                     if (selectedDate) {
                       const hrs = selectedDate.getHours().toString().padStart(2, "0");
@@ -147,6 +147,7 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
                       setErrors((e) => ({ ...e, workoutTime: "" }));
                     }
                   }}
+                  onDismiss={() => setShowPicker(false)}
                 />
               </View>
             </View>
@@ -188,7 +189,7 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
                                   value={data.hydrationTime ? new Date(1970,0,1,parseInt(data.hydrationTime.split(":")[0]),parseInt(data.hydrationTime.split(":")[1])) : new Date()}
                                   is24Hour={true}
                                   display="spinner"
-                                  onChange={(_, selectedDate) => {
+                                  onValueChange={(_, selectedDate) => {
                                     setShowHydrationPicker(false);
                                     if (selectedDate) {
                                       const hrs = selectedDate.getHours().toString().padStart(2, "0");
@@ -198,6 +199,7 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
                                       setErrors((e) => ({ ...e, hydrationTime: "" }));
                                     }
                                   }}
+                                  onDismiss={() => setShowHydrationPicker(false)}
                                 />
                               </View>
                             </View>

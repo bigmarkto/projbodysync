@@ -143,7 +143,7 @@ export const Step1PersonalData = ({ onNext, onBack, totalSteps }: Props) => {
                   value={data.birthYear ? new Date(data.birthYear) : new Date()}
                   display="spinner"
                   maximumDate={new Date()}
-                  onChange={(_, selectedDate) => {
+                  onValueChange={(_, selectedDate) => {
                     setShowBirthPicker(false);
                     if (selectedDate) {
                       const iso = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -151,6 +151,7 @@ export const Step1PersonalData = ({ onNext, onBack, totalSteps }: Props) => {
                       setErrors((e) => ({ ...e, birthYear: '' }));
                     }
                   }}
+                  onDismiss={() => setShowBirthPicker(false)}
                 />
               </View>
             </View>

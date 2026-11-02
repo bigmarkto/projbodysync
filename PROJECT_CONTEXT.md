@@ -69,6 +69,7 @@
   - **Atenção:** Todas as telas roláveis com abas ativas DEVEM usar `paddingBottom: insets.bottom + 100` no `contentContainerStyle` para evitar que conteúdos do rodapé fiquem escondidos atrás da TabBar.
 - **Players de Exercício:**
   - `WorkoutPlayer.tsx` e `HiitPlayer.tsx` rodam em tela cheia com timers circulares de alto contraste e botões de toque com altura mínima de 52px.
+  - No `WorkoutPlayer.tsx`, a fase de descanso entre séries e exercícios conta com um anel giratório 360° animado via `Animated.loop` e `useNativeDriver: true` (idêntico à estética do `PreparingScreen.tsx`), envolvendo o círculo do cronômetro.
 
 ---
 

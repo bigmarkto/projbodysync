@@ -24,6 +24,8 @@
 - **Hash de Tokens de Recuperação:** No [`bodysync-api/src/modules/auth/auth.service.ts`](file:///c:/dev/projbodysync/bodysync-api/src/modules/auth/auth.service.ts), tokens de redefinição de senha nunca são armazenados puros no banco; usamos `crypto.createHash('sha256')`.
 - **Prevenção de SQL Injection em Perfis:** Em [`user-profile.service.ts`](file:///c:/dev/projbodysync/bodysync-api/src/modules/user-profile/user-profile.service.ts), usamos `PROFILE_FIELD_MAP` como whitelist restrita de colunas permitidas para `UPDATE`.
 - **Lock contra Concorrência (TOCTOU):** No [`workout.service.ts`](file:///c:/dev/projbodysync/bodysync-api/src/modules/workout/workout.service.ts), validações de limite de planos por assinatura usam `SELECT ... FOR UPDATE` dentro de `BEGIN...COMMIT`.
+- **Hardening de Cadastro & Pagamento Simulado:** Em [`auth.controller.ts`](bodysync-api/src/modules/auth/auth.controller.ts), `POST /api/auth/register` aceita apenas perfis `comum` ou `professor` (bloqueia auto-cadastro como `admin` com `403`) e cria contas sempre no plano inicial `free`. Planos pagos (`premium` para aluno; `basic` para personal) passam obrigatoriamente pela tela simulada [`PaymentScreen.tsx`](src/screens/Registration/PaymentScreen.tsx) -> `POST /api/payment/subscribe`, validado por [`isSubscriptionAllowedForRole`](bodysync-api/src/modules/payment/payment.routes.ts).
+- **Fluxo Personalizado por Perfil no Onboarding:** No [`RegisterScreen.tsx`](src/screens/Registration/RegisterScreen.tsx), contas `comum` percorrem 7 etapas e contas `professor` percorrem 3 etapas (`Step1PersonalData` -> `Step2Subscription` -> `Step7Confirmation`), ambos com `PaymentScreen` ao escolher plano pago e auto-login direto ao concluir. Trocar o perfil em `Step1PersonalData` limpa `subscriptionType` selecionado.
 
 ### B. Fusos Horários e Datas
 - **Regra de Fuso:** No Brasil (`America/Sao_Paulo`), datas de hidratação, pesagem e sessões de treino nunca usam `new Date().toISOString().slice(0, 10)` sem conversão, pois após as 21h UTC causava salto de dia. Usamos âncora UTC-noon (`T12:00:00.000Z`) ou conversão via `Intl.DateTimeFormat`.
@@ -55,6 +57,24 @@
 - **Automação de Migrações:**
   - Script runner em [`bodysync-api/src/scripts/run-migration.ts`](file:///c:/dev/projbodysync/bodysync-api/src/scripts/run-migration.ts) executável via `npm --prefix bodysync-api run migrate`.
 
+### E. Módulo Personal Trainer, Prescrições & Regras de Negócio (Migrações 003–005)
+- **Separação Estrita de Papéis (`RootNavigator` & Guards):**
+  - Removidos placeholders de troca de papel (`RolePreviewContext`, `mockTrainerData`). A navegação respeita `user.role` real vindo da API: `'professor'` entra no [`TrainerMainFlow`](src/screens/Trainer/TrainerMainFlow.tsx) (aba inicial `Métricas`, seguida de `Alunos` e `Ajustes`); `'comum'` entra no app do aluno.
+  - Endpoints de consultoria (`/api/trainer/profile`, `/students`, `/students/:studentId`, `/prescribe`, `/plans/:planId`, `/analytics`) são protegidos por `requireProfessor`.
+- **Vínculo Personal <-> Aluno (`trainer_students`):**
+  - Cada treinador recebe um código mestre único `BS-XXXX` (`student_id IS NULL`, garantido pelos índices únicos parciais das migrações `004` e `005` com retry contra colisão `23505`).
+  - Apenas usuários `role = 'comum'` podem conectar-se como alunos (`connectStudent` rejeita `professor`/`admin` com `403`), e o desvínculo (`DELETE /api/trainer/students/:studentId`) funciona de forma mútua.
+- **Prescrição Fiel & Catálogo Completo (880 exercícios):**
+  - Em [`TrainerPrescribeScreen.tsx`](src/screens/Trainer/TrainerPrescribeScreen.tsx), a seleção de catálogo consulta `GET /api/exercises` no servidor (`search` com debounce, filtro por `category` via `/exercises/categories`, `limit=50` e paginação `"Carregar mais"`), superando o limite padrão de 20 itens por página.
+  - A migração `005_trainer_plan_rest_and_fk.sql` adicionou `rest_seconds` (`10..600`, padrão `60`) em `plan_exercises`. O descanso prescrito é salvo em [`prescribeWorkout`](bodysync-api/src/modules/trainer/trainer.service.ts), exibido com a categoria real do exercício na `StudentDetailScreen` e no `PlanDetail`, e aplicado no cronômetro entre séries do `WorkoutPlayer`.
+- **Permissões e Limite Free nos Treinos Prescritos:**
+  - Planos com `created_by_trainer_id IS NOT NULL` **não consomem** o limite de 2 planos gratuitos do aluno em [`workout.service.ts`](bodysync-api/src/modules/workout/workout.service.ts).
+  - O aluno vê o selo `Personal`, mas **não pode editar nem excluir** treinos prescritos (`403 ForbiddenPlanError` na API + botões substituídos por cadeado/ocultos na UI).
+  - Apenas o próprio Personal pode remover fichas que prescreveu em `StudentDetailScreen` (`DELETE /api/trainer/plans/:planId`), com `workout_sessions.plan_id` configurado como `ON DELETE SET NULL` na migração `005` para preservar o histórico de treinos executados.
+- **Métricas & Janela Semanal Unificada:**
+  - [`fetchStudentsWithSessionTotals`](bodysync-api/src/modules/trainer/trainer.service.ts) consolida a janela de 7 dias no fuso `America/Sao_Paulo` em uma única CTE SQL reaproveitada por `listStudents` e `getAnalytics`, e `getStudentDetail` conta frequência semanal diretamente no SQL (sem limite de 15 linhas).
+  - Alunos sem nenhuma sessão ainda usam `joinedAt` para cálculo de inatividade (`attentionStudents`), recebendo `neverTrained: true` se vinculados há 4+ dias sem treinar (sem falso alerta de "7 dias inativo" no cadastro).
+
 ---
 
 ## 3. Padrões de UI/UX & Temas
@@ -69,7 +89,12 @@
   - **Atenção:** Todas as telas roláveis com abas ativas DEVEM usar `paddingBottom: insets.bottom + 100` no `contentContainerStyle` para evitar que conteúdos do rodapé fiquem escondidos atrás da TabBar.
 - **Players de Exercício:**
   - `WorkoutPlayer.tsx` e `HiitPlayer.tsx` rodam em tela cheia com timers circulares de alto contraste e botões de toque com altura mínima de 52px.
-  - No `WorkoutPlayer.tsx`, a fase de descanso entre séries e exercícios conta com um anel giratório 360° animado via `Animated.loop` e `useNativeDriver: true` (idêntico à estética do `PreparingScreen.tsx`), envolvendo o círculo do cronômetro.
+  - No `WorkoutPlayer.tsx`, a fase de descanso entre séries respeita `current.restSeconds` (fallback `45s`) e conta com um anel giratório 360° animado via `Animated.loop` e `useNativeDriver: true` (idêntico à estética do `PreparingScreen.tsx`), envolvendo o círculo do cronômetro.
+- **Compatibilidade Cross-Platform (Web + Mobile):**
+  - Substituímos `Alert.alert` com botões de ação pelo componente reutilizável [`ConfirmModal.tsx`](src/components/ConfirmModal.tsx) (usado em exclusões, interrupção de treino, saída da conta em `SettingsScreen` e ações na `StudentDetailScreen`).
+  - Inputs de data/hora do cadastro (`Step1PersonalData`, `Step4Schedule`) exibem campo de texto nativo (`DD/MM/AAAA` / `HH:mm`) em `Platform.OS === 'web'`, onde o `DateTimePicker` nativo é nulo.
+  - Evitar `<TouchableOpacity>` aninhado dentro de outro `<TouchableOpacity>` (cards de aluno e alerta no painel do Personal usam `<View>` externa e cliques separados).
+  - Abas do aluno compartilham [`TabFocusContext.tsx`](src/context/TabFocusContext.tsx) no `TabNavigator` para recarregar Home, Treinos e Progresso ao alternar de aba; em [`AuthContext.tsx`](src/context/AuthContext.tsx), `logout` envia `keepalive: true`.
 
 ---
 
@@ -87,11 +112,10 @@
 ## 5. Como Rodar e Testar
 
 - **Backend:**
-  - Iniciar: `cd bodysync-api && npm run dev` (Porta 3000).
-  - Executar Migrações SQL: `npm --prefix bodysync-api run migrate`.
-  - Testes: `npm --prefix bodysync-api test` (deve passar 6/6 testes).
+  - Iniciar: `cd bodysync-api && npm run dev` (Porta 3000; no Windows também via `node node_modules/tsx/dist/cli.mjs src/server.ts`).
+  - Executar Migrações SQL: `npm --prefix bodysync-api run migrate` (atualmente até `005_trainer_plan_rest_and_fk.sql`).
+  - Testes completos da API: `cd bodysync-api && npx tsx --test src/__tests__/trainer.test.ts src/__tests__/audit-fixes.test.ts` (22/22 testes cobrindo auth, fuso, hidratação, treino e módulo personal).
+  - Checagem de Tipos Backend: `cd bodysync-api && npx tsc --noEmit` (deve retornar código 0).
 - **Frontend:**
-  - Iniciar: `npm start` (Expo Metro).
-  - Web Preview: Abrir `http://localhost:8081` ou pressionar `w`.
-- **Checagem de Tipos Geral:**
-  - `npx tsc --noEmit` (deve retornar com código 0).
+  - Iniciar: `npm start` (Expo Metro) ou `npm run web` (`http://localhost:8081`).
+  - Checagem de Tipos Frontend: `npx tsc --noEmit` (deve retornar código 0).

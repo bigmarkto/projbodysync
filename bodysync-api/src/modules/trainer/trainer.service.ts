@@ -43,6 +43,12 @@ function daysBetweenDateKeys(olderKey: string, newerKey: string): number {
   return Math.max(0, Math.round((b - a) / (1000 * 3600 * 24)))
 }
 
+function weekStartDateKey(): string {
+  const anchor = new Date(`${dateKey(new Date())}T12:00:00Z`)
+  anchor.setUTCDate(anchor.getUTCDate() - 7)
+  return anchor.toISOString().slice(0, 10)
+}
+
 function computeLastWorkoutStatus(
   lastWorkoutIso: string | Date | null
 ): 'today' | 'yesterday' | 'warning' | 'recent' {
@@ -86,20 +92,30 @@ export const trainerService = {
     if (codeRes.rows.length > 0 && codeRes.rows[0].invite_code) {
       inviteCode = codeRes.rows[0].invite_code
     } else {
-      const candidate = generateCode()
-      await db.query(
-        `INSERT INTO trainer_students (trainer_id, student_id, invite_code, status)
-         VALUES ($1, NULL, $2, 'active')
-         ON CONFLICT (trainer_id) WHERE student_id IS NULL DO NOTHING`,
-        [trainerId, candidate]
-      )
+      let insertedCandidate = ''
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const candidate = generateCode()
+        try {
+          await db.query(
+            `INSERT INTO trainer_students (trainer_id, student_id, invite_code, status)
+             VALUES ($1, NULL, $2, 'active')
+             ON CONFLICT (trainer_id) WHERE student_id IS NULL DO NOTHING`,
+            [trainerId, candidate]
+          )
+          insertedCandidate = candidate
+          break
+        } catch (err: any) {
+          if (err?.code === '23505' && attempt < 2) continue
+          throw err
+        }
+      }
       codeRes = await db.query(
         `SELECT invite_code FROM trainer_students
          WHERE trainer_id = $1 AND student_id IS NULL
          LIMIT 1`,
         [trainerId]
       )
-      inviteCode = codeRes.rows[0]?.invite_code || candidate
+      inviteCode = codeRes.rows[0]?.invite_code || insertedCandidate
     }
 
     const countsRes = await db.query(
@@ -121,11 +137,35 @@ export const trainerService = {
     }
   },
 
-  // 2. Listar alunos ativos vinculados ao Personal
-  async listStudents(trainerId: string): Promise<TrainerStudentSummary[]> {
+  // 2. Listar alunos ativos vinculados ao Personal (com agregação única de sessões)
+  async fetchStudentsWithSessionTotals(
+    trainerId: string
+  ): Promise<{ students: TrainerStudentSummary[]; totalDurationMinutes: number }> {
     assertUuid(trainerId, 'Treinador')
+    const sinceKey = weekStartDateKey()
 
     const query = `
+      WITH weekly_sessions AS (
+        SELECT
+          ws.user_id,
+          MAX(ws.finished_at) AS last_workout_date,
+          COUNT(*) FILTER (
+            WHERE (ws.finished_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+          )::int AS week_attended,
+          COALESCE(
+            SUM(GREATEST(1, ROUND(EXTRACT(EPOCH FROM (ws.finished_at - ws.started_at)) / 60))) FILTER (
+              WHERE (ws.finished_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date
+            ),
+            0
+          )::int AS week_duration_sum
+        FROM workout_sessions ws
+        JOIN trainer_students ts_f
+          ON ts_f.student_id = ws.user_id
+         AND ts_f.trainer_id = $1
+         AND ts_f.status = 'active'
+        WHERE ws.finished_at IS NOT NULL
+        GROUP BY ws.user_id
+      )
       SELECT
         ts.id,
         ts.student_id AS "studentId",
@@ -137,46 +177,47 @@ export const trainerService = {
         COALESCE(up.gender, u.gender, 'outro') AS gender,
         COALESCE(up.workout_frequency, u.workout_frequency, 5)::int AS "workoutFrequency",
         ts.created_at AS "joinedAt",
-        (
-          SELECT ws.finished_at
-          FROM workout_sessions ws
-          WHERE ws.user_id = ts.student_id AND ws.finished_at IS NOT NULL
-          ORDER BY ws.finished_at DESC
-          LIMIT 1
-        ) AS "lastWorkoutDate",
-        (
-          SELECT COUNT(*)::int
-          FROM workout_sessions ws
-          WHERE ws.user_id = ts.student_id
-            AND ws.finished_at IS NOT NULL
-            AND ws.finished_at >= CURRENT_DATE - INTERVAL '7 days'
-        ) AS "weekAttended"
+        ws.last_workout_date AS "lastWorkoutDate",
+        COALESCE(ws.week_attended, 0)::int AS "weekAttended",
+        COALESCE(ws.week_duration_sum, 0)::int AS "weekDurationSum"
       FROM trainer_students ts
       JOIN users u ON u.id = ts.student_id
       LEFT JOIN user_profiles up ON up.user_id = ts.student_id
+      LEFT JOIN weekly_sessions ws ON ws.user_id = ts.student_id
       WHERE ts.trainer_id = $1 AND ts.student_id IS NOT NULL AND ts.status = 'active'
       ORDER BY ts.created_at DESC
     `
 
-    const res = await db.query(query, [trainerId])
+    const res = await db.query(query, [trainerId, sinceKey])
+    let totalDurationMinutes = 0
 
-    return res.rows.map((r: any) => ({
-      id: r.id,
-      studentId: r.studentId,
-      name: r.name,
-      email: r.email,
-      fitnessGoal: r.fitnessGoal,
-      weightKg: Number(r.weightKg) || 0,
-      heightCm: Number(r.heightCm) || 0,
-      gender: r.gender,
-      lastWorkoutDate: r.lastWorkoutDate,
-      lastWorkoutStatus: computeLastWorkoutStatus(r.lastWorkoutDate),
-      weeklyConsistency: {
-        attended: r.weekAttended || 0,
-        target: Math.max(1, r.workoutFrequency || 5),
-      },
-      joinedAt: r.joinedAt,
-    }))
+    const students = res.rows.map((r: any) => {
+      totalDurationMinutes += Number(r.weekDurationSum) || 0
+      return {
+        id: r.id,
+        studentId: r.studentId,
+        name: r.name,
+        email: r.email,
+        fitnessGoal: r.fitnessGoal,
+        weightKg: Number(r.weightKg) || 0,
+        heightCm: Number(r.heightCm) || 0,
+        gender: r.gender,
+        lastWorkoutDate: r.lastWorkoutDate,
+        lastWorkoutStatus: computeLastWorkoutStatus(r.lastWorkoutDate),
+        weeklyConsistency: {
+          attended: r.weekAttended || 0,
+          target: Math.max(1, r.workoutFrequency || 5),
+        },
+        joinedAt: r.joinedAt,
+      }
+    })
+
+    return { students, totalDurationMinutes }
+  },
+
+  async listStudents(trainerId: string): Promise<TrainerStudentSummary[]> {
+    const { students } = await this.fetchStudentsWithSessionTotals(trainerId)
+    return students
   },
 
   // 3. Detalhes 360° de um aluno vinculado
@@ -230,6 +271,7 @@ export const trainerService = {
          p.id,
          p.name,
          p.created_at AS "createdAt",
+         p.created_by_trainer_id AS "createdByTrainerId",
          COUNT(pe.id)::int AS "exerciseCount"
        FROM workout_plans p
        LEFT JOIN plan_exercises pe ON pe.plan_id = p.id
@@ -248,10 +290,11 @@ export const trainerService = {
            pe.plan_id AS "planId",
            pe.exercise_id AS "exerciseId",
            COALESCE(NULLIF(e.name_pt, ''), e.name) AS name,
+           COALESCE(e.category, 'Geral') AS category,
            pe.sets,
            pe.reps,
            pe.order_index AS "orderIndex",
-           60 AS "restSeconds"
+           COALESCE(pe.rest_seconds, 60)::int AS "restSeconds"
          FROM plan_exercises pe
          JOIN exercises e ON e.id = pe.exercise_id
          WHERE pe.plan_id = ANY($1::int[])
@@ -273,19 +316,30 @@ export const trainerService = {
     }
 
     // Sessões concluídas reais (calcula duração via started_at / finished_at)
-    const sessionsRes = await db.query(
-      `SELECT
-         ws.id,
-         COALESCE(p.name, 'Treino Livre') AS "planName",
-         ws.finished_at AS "finishedAt",
-         GREATEST(1, ROUND(EXTRACT(EPOCH FROM (ws.finished_at - ws.started_at)) / 60))::int AS "durationMinutes"
-       FROM workout_sessions ws
-       LEFT JOIN workout_plans p ON p.id = ws.plan_id
-       WHERE ws.user_id = $1 AND ws.finished_at IS NOT NULL
-       ORDER BY ws.finished_at DESC
-       LIMIT 15`,
-      [studentId]
-    )
+    const sinceKey = weekStartDateKey()
+    const [sessionsRes, weekCountRes] = await Promise.all([
+      db.query(
+        `SELECT
+           ws.id,
+           COALESCE(p.name, 'Treino Livre') AS "planName",
+           ws.finished_at AS "finishedAt",
+           GREATEST(1, ROUND(EXTRACT(EPOCH FROM (ws.finished_at - ws.started_at)) / 60))::int AS "durationMinutes"
+         FROM workout_sessions ws
+         LEFT JOIN workout_plans p ON p.id = ws.plan_id
+         WHERE ws.user_id = $1 AND ws.finished_at IS NOT NULL
+         ORDER BY ws.finished_at DESC
+         LIMIT 15`,
+        [studentId]
+      ),
+      db.query(
+        `SELECT COUNT(*)::int AS attended
+         FROM workout_sessions ws
+         WHERE ws.user_id = $1
+           AND ws.finished_at IS NOT NULL
+           AND (ws.finished_at AT TIME ZONE 'America/Sao_Paulo')::date >= $2::date`,
+        [studentId, sinceKey]
+      ),
+    ])
 
     // Histórico real de pesagens (body_measurements.weight_kg)
     const weightsRes = await db.query(
@@ -315,10 +369,7 @@ export const trainerService = {
     const deltaWeightKg = weightHistory.length >= 2 ? Number((latestWeight - oldestWeight).toFixed(1)) : 0
 
     const lastWorkout = sessionsRes.rows[0]?.finishedAt || null
-    const weekAttended = sessionsRes.rows.filter((s: any) => {
-      const diff = Date.now() - new Date(s.finishedAt).getTime()
-      return diff >= 0 && diff <= 7 * 24 * 3600 * 1000
-    }).length
+    const weekAttended = weekCountRes.rows[0]?.attended || 0
 
     return {
       id: linkRes.rows[0].id,
@@ -373,6 +424,10 @@ export const trainerService = {
       if (!Number.isInteger(ex.reps) || ex.reps <= 0) {
         throw new TrainerError(`exercises[${i}].reps deve ser maior que zero`, 400)
       }
+      const restSeconds = ex.restSeconds ?? 60
+      if (!Number.isInteger(restSeconds) || restSeconds < 10 || restSeconds > 600) {
+        throw new TrainerError(`exercises[${i}].restSeconds deve estar entre 10 e 600 segundos`, 400)
+      }
     }
 
     // Validar vínculo ativo
@@ -408,10 +463,11 @@ export const trainerService = {
 
       for (let i = 0; i < exercises.length; i++) {
         const ex = exercises[i]
+        const restSeconds = ex.restSeconds ?? 60
         await client.query(
-          `INSERT INTO plan_exercises (plan_id, exercise_id, sets, reps, order_index)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [planId, ex.exerciseId, ex.sets, ex.reps, i]
+          `INSERT INTO plan_exercises (plan_id, exercise_id, sets, reps, order_index, rest_seconds)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [planId, ex.exerciseId, ex.sets, ex.reps, i, restSeconds]
         )
       }
 
@@ -431,11 +487,12 @@ export const trainerService = {
     }
   },
 
-  // 5. Métricas reais da consultoria
+  // 5. Métricas reais da consultoria (reaproveita agregação de listStudents)
   async getAnalytics(trainerId: string): Promise<TrainerAnalytics> {
     assertUuid(trainerId, 'Treinador')
 
-    const studentsRes = await this.listStudents(trainerId)
+    const { students: studentsRes, totalDurationMinutes } =
+      await this.fetchStudentsWithSessionTotals(trainerId)
     const activeStudentsCount = studentsRes.length
 
     const prescriptionsCountRes = await db.query(
@@ -473,15 +530,18 @@ export const trainerService = {
         trainedTodayCount++
       }
 
-      const diffDays = st.lastWorkoutDate
-        ? daysBetweenDateKeys(dateKey(new Date(st.lastWorkoutDate)), todayKey)
-        : 7
+      const hasTrained = Boolean(st.lastWorkoutDate)
+      const refIso = st.lastWorkoutDate || st.joinedAt
+      const diffDays = refIso
+        ? daysBetweenDateKeys(dateKey(new Date(refIso)), todayKey)
+        : 0
 
       if (diffDays >= 4) {
         attentionStudents.push({
           studentId: st.studentId,
           name: st.name,
           daysInactive: diffDays,
+          neverTrained: !hasTrained,
         })
       }
 
@@ -503,20 +563,8 @@ export const trainerService = {
     const weeklyAttendanceRate =
       totalTarget > 0 ? Math.min(100, Math.round((totalAttended / totalTarget) * 100)) : 0
 
-    // Contagem e duração média reais das sessões finalizadas na semana
-    const metricsRes = await db.query(
-      `SELECT
-         COUNT(ws.id)::int AS weekly_count,
-         COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (ws.finished_at - ws.started_at)) / 60)), 0)::int AS avg_dur
-       FROM workout_sessions ws
-       JOIN trainer_students ts ON ts.student_id = ws.user_id
-       WHERE ts.trainer_id = $1
-         AND ts.student_id IS NOT NULL
-         AND ts.status = 'active'
-         AND ws.finished_at IS NOT NULL
-         AND ws.finished_at >= CURRENT_DATE - INTERVAL '7 days'`,
-      [trainerId]
-    )
+    const avgWorkoutDurationMinutes =
+      totalAttended > 0 ? Math.round(totalDurationMinutes / totalAttended) : 0
 
     // Meta de água real de hoje entre os alunos vinculados
     const waterRes = await db.query(
@@ -541,8 +589,8 @@ export const trainerService = {
       weeklyAttendanceRate,
       trainedTodayCount,
       totalPrescriptions,
-      weeklyWorkoutsCount: metricsRes.rows[0]?.weekly_count || 0,
-      avgWorkoutDurationMinutes: Math.max(0, metricsRes.rows[0]?.avg_dur || 0),
+      weeklyWorkoutsCount: totalAttended,
+      avgWorkoutDurationMinutes,
       waterComplianceRate: waterRes.rows[0]?.water_pct || 0,
       attentionStudents,
       ranking,
@@ -625,6 +673,14 @@ export const trainerService = {
   async connectStudent(studentId: string, inviteCode: string) {
     const trainer = await this.lookupTrainerByCode(studentId, inviteCode)
 
+    const userRes = await db.query('SELECT role FROM users WHERE id = $1 LIMIT 1', [studentId])
+    if (userRes.rows.length === 0) {
+      throw new TrainerError('Usuário não encontrado', 404)
+    }
+    if (userRes.rows[0].role !== 'comum') {
+      throw new TrainerError('Apenas contas de aluno podem se vincular a um Personal Trainer', 403)
+    }
+
     const client = await db.connect()
     try {
       await client.query('BEGIN')
@@ -681,5 +737,26 @@ export const trainerService = {
     }
 
     return { success: true, message: 'Consultoria desvinculada com sucesso' }
+  },
+
+  // 8. Excluir ficha prescrita pelo próprio Personal
+  async deletePrescribedPlan(trainerId: string, planId: number) {
+    assertUuid(trainerId, 'Treinador')
+    if (!Number.isInteger(planId) || planId <= 0) {
+      throw new TrainerError('ID do plano inválido', 400)
+    }
+
+    const res = await db.query(
+      `DELETE FROM workout_plans
+       WHERE id = $1 AND created_by_trainer_id = $2
+       RETURNING id`,
+      [planId, trainerId]
+    )
+
+    if (res.rows.length === 0) {
+      throw new TrainerError('Ficha prescrita não encontrada ou sem permissão para excluir', 404)
+    }
+
+    return { success: true, message: 'Ficha removida com sucesso' }
   },
 }

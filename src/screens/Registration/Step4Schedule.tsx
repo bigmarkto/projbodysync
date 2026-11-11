@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Switch,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRegister } from "./RegisterContext";
@@ -32,6 +33,79 @@ interface Props {
   currentStep: number;
 }
 
+const TimeFieldPicker = ({
+  label,
+  value,
+  error,
+  visible,
+  onOpen,
+  onClose,
+  onChange,
+  icon,
+}: {
+  label: string;
+  value: string;
+  error?: string;
+  visible: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onChange: (hhmm: string) => void;
+  icon: "time-outline" | "alarm-outline";
+}) => {
+  if (Platform.OS === "web") {
+    return (
+      <FieldInput
+        label={label}
+        placeholder="Ex: 07:30"
+        leftIcon={icon}
+        value={value}
+        onChangeText={onChange}
+        error={error}
+        maxLength={5}
+      />
+    );
+  }
+
+  const parsedDate =
+    /^\d{2}:\d{2}$/.test(value)
+      ? new Date(1970, 0, 1, parseInt(value.split(":")[0], 10), parseInt(value.split(":")[1], 10))
+      : new Date();
+
+  return (
+    <>
+      <Text style={s.sectionLabel}>{label}</Text>
+      <TouchableOpacity style={s.timePickerBtn} onPress={onOpen}>
+        <Ionicons name={icon} size={18} color={lightColors.text.tertiary} style={{ marginRight: 10 }} />
+        <Text style={s.timePickerText}>{value || "Selecione horário (HH:MM)"}</Text>
+      </TouchableOpacity>
+      {!!error && <Text style={s.error}>{error}</Text>}
+      {visible && (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+          <View style={s.modalBackdrop}>
+            <View style={s.modalContainer}>
+              <DateTimePicker
+                mode="time"
+                value={parsedDate}
+                is24Hour
+                display="spinner"
+                onValueChange={(_, selectedDate) => {
+                  onClose();
+                  if (selectedDate) {
+                    const hrs = selectedDate.getHours().toString().padStart(2, "0");
+                    const mins = selectedDate.getMinutes().toString().padStart(2, "0");
+                    onChange(`${hrs}:${mins}`);
+                  }
+                }}
+                onDismiss={onClose}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
+    </>
+  );
+};
+
 export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props) => {
   const { data, setField } = useRegister();
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -49,14 +123,17 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
   const selectPreset = (label: string) => {
     setSelectedPreset(label);
     setField("workoutTime", TIME_PRESETS[label]);
+    setErrors((e) => ({ ...e, workoutTime: "" }));
   };
 
   const validate = () => {
     const e: Record<string, string> = {};
+    const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
     if (data.workoutDays.length === 0) e.days = "Selecione ao menos 1 dia.";
-    if (!data.workoutTime) e.workoutTime = "Informe o horário dos treinos.";
-    if (data.hydrationReminder && !data.hydrationTime)
-      e.hydrationTime = "Informe o horário do lembrete de água.";
+    if (!timeRegex.test(data.workoutTime.trim()))
+      e.workoutTime = "Informe um horário válido (HH:MM).";
+    if (data.hydrationReminder && !timeRegex.test(data.hydrationTime.trim()))
+      e.hydrationTime = "Informe um horário válido (HH:MM).";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -118,41 +195,19 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
         </View>
 
         {/* Horário manual (time picker) */}
-        <Text style={s.sectionLabel}>Horário exato</Text>
-        <TouchableOpacity style={s.timePickerBtn} onPress={() => setShowPicker(true)}>
-          <Ionicons name="time-outline" size={18} color={lightColors.text.tertiary} style={{ marginRight: 10 }} />
-          <Text style={s.timePickerText}>{data.workoutTime || "Selecione horário (HH:MM)"}</Text>
-        </TouchableOpacity>
-        {showPicker && (
-          <Modal
-            visible={showPicker}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowPicker(false)}
-          >
-            <View style={s.modalBackdrop}>
-              <View style={s.modalContainer}>
-                <DateTimePicker
-                  mode="time"
-                  value={data.workoutTime ? new Date(1970,0,1,parseInt(data.workoutTime.split(":")[0]),parseInt(data.workoutTime.split(":")[1])) : new Date()}
-                  is24Hour={true}
-                  display="spinner"
-                  onValueChange={(_, selectedDate) => {
-                    setShowPicker(false);
-                    if (selectedDate) {
-                      const hrs = selectedDate.getHours().toString().padStart(2, "0");
-                      const mins = selectedDate.getMinutes().toString().padStart(2, "0");
-                      const timeStr = `${hrs}:${mins}`;
-                      setField("workoutTime", timeStr);
-                      setErrors((e) => ({ ...e, workoutTime: "" }));
-                    }
-                  }}
-                  onDismiss={() => setShowPicker(false)}
-                />
-              </View>
-            </View>
-          </Modal>
-        )}
+        <TimeFieldPicker
+          label="Horário exato"
+          value={data.workoutTime}
+          error={errors.workoutTime}
+          visible={showPicker}
+          onOpen={() => setShowPicker(true)}
+          onClose={() => setShowPicker(false)}
+          onChange={(timeStr) => {
+            setField("workoutTime", timeStr);
+            setErrors((e) => ({ ...e, workoutTime: "" }));
+          }}
+          icon="time-outline"
+        />
 
         {/* Hidratação */}
         <View style={s.hydrationRow}>
@@ -169,43 +224,19 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
         </View>
 
         {data.hydrationReminder && (
-          <>
-            <Text style={s.sectionLabel}>Horário do lembrete</Text>
-            <TouchableOpacity style={s.timePickerBtn} onPress={() => setShowHydrationPicker(true)}>
-              <Ionicons name="alarm-outline" size={18} color={lightColors.text.tertiary} style={{ marginRight: 10 }} />
-              <Text style={s.timePickerText}>{data.hydrationTime || "Selecione horário (HH:MM)"}</Text>
-            </TouchableOpacity>
-            {showHydrationPicker && (
-                          <Modal
-                            visible={showHydrationPicker}
-                            transparent
-                            animationType="fade"
-                            onRequestClose={() => setShowHydrationPicker(false)}
-                          >
-                            <View style={s.modalBackdrop}>
-                              <View style={s.modalContainer}>
-                                <DateTimePicker
-                                  mode="time"
-                                  value={data.hydrationTime ? new Date(1970,0,1,parseInt(data.hydrationTime.split(":")[0]),parseInt(data.hydrationTime.split(":")[1])) : new Date()}
-                                  is24Hour={true}
-                                  display="spinner"
-                                  onValueChange={(_, selectedDate) => {
-                                    setShowHydrationPicker(false);
-                                    if (selectedDate) {
-                                      const hrs = selectedDate.getHours().toString().padStart(2, "0");
-                                      const mins = selectedDate.getMinutes().toString().padStart(2, "0");
-                                      const timeStr = `${hrs}:${mins}`;
-                                      setField("hydrationTime", timeStr);
-                                      setErrors((e) => ({ ...e, hydrationTime: "" }));
-                                    }
-                                  }}
-                                  onDismiss={() => setShowHydrationPicker(false)}
-                                />
-                              </View>
-                            </View>
-                          </Modal>
-                        )}
-          </>
+          <TimeFieldPicker
+            label="Horário do lembrete"
+            value={data.hydrationTime}
+            error={errors.hydrationTime}
+            visible={showHydrationPicker}
+            onOpen={() => setShowHydrationPicker(true)}
+            onClose={() => setShowHydrationPicker(false)}
+            onChange={(timeStr) => {
+              setField("hydrationTime", timeStr);
+              setErrors((e) => ({ ...e, hydrationTime: "" }));
+            }}
+            icon="alarm-outline"
+          />
         )}
 
         <View style={{ height: 24 }} />

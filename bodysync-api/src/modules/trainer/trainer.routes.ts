@@ -19,6 +19,7 @@ router.get('/profile', requireProfessor, trainerController.getProfile)
 router.get('/students', requireProfessor, trainerController.listStudents)
 router.get('/students/:studentId', requireProfessor, trainerController.getStudentDetail)
 router.post('/prescribe', requireProfessor, trainerController.prescribeWorkout)
+router.delete('/plans/:planId', requireProfessor, trainerController.deletePrescribedPlan)
 router.get('/analytics', requireProfessor, trainerController.getAnalytics)
 
 export { router as trainerRoutes }

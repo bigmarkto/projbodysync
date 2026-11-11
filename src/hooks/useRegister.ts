@@ -12,10 +12,8 @@ export const useRegisterApi = () => {
 
     const mappedRole =
       data.role === 'personal' ? 'professor' : data.role || 'comum'
-    const validSubscriptions = ['free', 'basic', 'premium']
-    const mappedSubscription = validSubscriptions.includes(data.subscriptionType)
-      ? data.subscriptionType
-      : 'premium'
+    // Cadastro público sempre inicia como 'free'; plano pago é ativado via PaymentScreen (/payment/subscribe)
+    const mappedSubscription = 'free'
 
     const payload = {
       email: data.email,

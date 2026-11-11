@@ -82,7 +82,8 @@ function mapApiStudentToAppStudent(apiStudent: any): Student {
     plans: (apiStudent.prescribedPlans || []).map((p: any) => ({
       id: p.id,
       name: p.name,
-      category: "Prescrito",
+      category: p.createdByTrainerId ? "Prescrito" : "Aluno",
+      createdByTrainerId: p.createdByTrainerId ?? null,
       exerciseCount: p.exerciseCount ?? p.exercises?.length ?? 0,
       estimatedMinutes: Math.max(20, (p.exerciseCount ?? p.exercises?.length ?? 0) * 8),
       assignedAt: p.createdAt
@@ -90,10 +91,10 @@ function mapApiStudentToAppStudent(apiStudent: any): Student {
         : "Hoje",
       exercises: (p.exercises || []).map((e: any) => ({
         name: e.name,
-        category: "Exercício",
+        category: e.category || "Geral",
         sets: e.sets,
         reps: e.reps,
-        restSeconds: e.restSeconds || 60,
+        restSeconds: e.restSeconds ?? 60,
       })),
     })),
     recentSessions: (apiStudent.recentSessions || []).map((s: any) => ({
@@ -201,12 +202,45 @@ export const createTrainerApi = (
     );
   },
 
-  async getExercises() {
-    const res = await request("/exercises");
+  async deletePrescribedPlan(planId: number) {
+    const res = await request(`/trainer/plans/${planId}`, {
+      method: "DELETE",
+    });
+    return parseJsonOrThrow<{ success: boolean; message: string }>(
+      res,
+      "Não foi possível excluir a ficha prescrita."
+    );
+  },
+
+  async getExerciseCategories(): Promise<string[]> {
+    const res = await request("/exercises/categories");
+    const data = await parseJsonOrThrow<{ categories?: string[] }>(
+      res,
+      "Não foi possível carregar as categorias."
+    );
+    return data.categories || [];
+  },
+
+  async getExercises(params?: {
+    search?: string;
+    category?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ exercises: any[]; total: number }> {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set("search", params.search);
+    if (params?.category) qs.set("category", params.category);
+    qs.set("limit", String(params?.limit ?? 50));
+    if (params?.offset) qs.set("offset", String(params.offset));
+    const query = qs.toString();
+
+    const res = await request(`/exercises${query ? `?${query}` : ""}`);
     const data = await parseJsonOrThrow<any>(
       res,
       "Não foi possível carregar o catálogo de exercícios."
     );
-    return Array.isArray(data) ? data : data.exercises || [];
+    const exercises = Array.isArray(data) ? data : data.exercises || [];
+    const total = Number(data?.pagination?.total ?? exercises.length);
+    return { exercises, total };
   },
 });

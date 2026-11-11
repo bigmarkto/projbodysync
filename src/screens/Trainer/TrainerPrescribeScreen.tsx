@@ -39,15 +39,6 @@ interface Props {
   onSuccess: (studentName: string, planName: string) => void;
 }
 
-const CATEGORIES = [
-  "Hipertrofia",
-  "Emagrecimento",
-  "Força Pura",
-  "Condicionamento",
-  "Funcional",
-  "Reabilitação",
-];
-
 export const TrainerPrescribeScreen = ({ student, onBack, onSuccess }: Props) => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -55,55 +46,67 @@ export const TrainerPrescribeScreen = ({ student, onBack, onSuccess }: Props) =>
   const trainerApi = useMemo(() => createTrainerApi(request), [request]);
 
   const [planName, setPlanName] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("Hipertrofia");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [exercises, setExercises] = useState<ExerciseItem[]>([]);
 
-  // Modal de Adicionar Exercício do Catálogo real da API
+  // Modal de Adicionar Exercício do Catálogo real da API (busca e paginação server-side)
   const [showPickerModal, setShowPickerModal] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogFilter, setCatalogFilter] = useState("Todos");
+  const [catalogCategories, setCatalogCategories] = useState<string[]>(["Todos"]);
   const [catalogItems, setCatalogItems] = useState<CatalogExerciseItem[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
 
-  const loadCatalog = useCallback(async () => {
-    setCatalogLoading(true);
-    setCatalogError(null);
-    try {
-      const apiExs = await trainerApi.getExercises();
-      setCatalogItems(
-        apiExs.map((e: any) => ({
+  useEffect(() => {
+    trainerApi
+      .getExerciseCategories()
+      .then((cats) => setCatalogCategories(["Todos", ...cats]))
+      .catch(() => {});
+  }, [trainerApi]);
+
+  const loadCatalog = useCallback(
+    async (offset = 0, append = false) => {
+      if (append) setLoadingMore(true);
+      else setCatalogLoading(true);
+      setCatalogError(null);
+      try {
+        const { exercises: apiExs, total } = await trainerApi.getExercises({
+          search: catalogSearch.trim() || undefined,
+          category: catalogFilter === "Todos" ? undefined : catalogFilter,
+          limit: 50,
+          offset,
+        });
+        const mapped = apiExs.map((e: any) => ({
           id: String(e.id),
           exerciseId: Number(e.id),
           name: e.name,
           category: e.category || e.muscles?.[0]?.name || "Geral",
-        }))
-      );
-    } catch (e) {
-      setCatalogError(
-        e instanceof Error ? e.message : "Erro ao carregar catálogo de exercícios."
-      );
-    } finally {
-      setCatalogLoading(false);
-    }
-  }, [trainerApi]);
+        }));
+        setCatalogTotal(total);
+        setCatalogItems((prev) => (append ? [...prev, ...mapped] : mapped));
+      } catch (e) {
+        setCatalogError(
+          e instanceof Error ? e.message : "Erro ao carregar catálogo de exercícios."
+        );
+      } finally {
+        setCatalogLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [trainerApi, catalogSearch, catalogFilter]
+  );
 
   useEffect(() => {
-    loadCatalog();
-  }, [loadCatalog]);
+    if (!showPickerModal) return;
+    const t = setTimeout(() => loadCatalog(0, false), 250);
+    return () => clearTimeout(t);
+  }, [showPickerModal, loadCatalog]);
 
-  const catalogCategories = useMemo(() => {
-    const unique = Array.from(new Set(catalogItems.map((c) => c.category))).filter(Boolean);
-    return ["Todos", ...unique];
-  }, [catalogItems]);
-
-  const filteredCatalog = catalogItems.filter((ex) => {
-    const matchSearch = ex.name.toLowerCase().includes(catalogSearch.toLowerCase());
-    const matchCat = catalogFilter === "Todos" || ex.category === catalogFilter;
-    return matchSearch && matchCat;
-  });
+  const filteredCatalog = catalogItems;
 
   const handleAddExerciseFromCatalog = (catalogItem: CatalogExerciseItem) => {
     setFormError(null);
@@ -216,28 +219,6 @@ export const TrainerPrescribeScreen = ({ student, onBack, onSuccess }: Props) =>
               setPlanName(t);
             }}
           />
-        </View>
-
-        {/* Foco / Categoria do Treino */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Foco do Treino</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
-            {CATEGORIES.map((cat) => {
-              const active = selectedCategory === cat;
-              return (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.catChip, active && styles.catChipActive]}
-                  onPress={() => setSelectedCategory(cat)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.catChipText, active && styles.catChipTextActive]}>
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
         </View>
 
         {/* Lista de Exercícios Adicionados */}
@@ -424,7 +405,7 @@ export const TrainerPrescribeScreen = ({ student, onBack, onSuccess }: Props) =>
               ) : catalogError ? (
                 <View style={styles.emptyExercisesBox}>
                   <Text style={[styles.emptyExercisesText, { color: colors.error }]}>{catalogError}</Text>
-                  <TouchableOpacity onPress={loadCatalog} style={{ marginTop: 8 }}>
+                  <TouchableOpacity onPress={() => loadCatalog(0, false)} style={{ marginTop: 8 }}>
                     <Text style={{ fontFamily: "Poppins_600SemiBold", color: colors.primary }}>Tentar novamente</Text>
                   </TouchableOpacity>
                 </View>
@@ -433,20 +414,37 @@ export const TrainerPrescribeScreen = ({ student, onBack, onSuccess }: Props) =>
                   <Text style={styles.emptyExercisesText}>Nenhum exercício encontrado para esta busca.</Text>
                 </View>
               ) : (
-                filteredCatalog.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.catalogItemRow}
-                    onPress={() => handleAddExerciseFromCatalog(item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.catalogItemName}>{item.name}</Text>
-                      <Text style={styles.catalogItemCat}>{item.category}</Text>
-                    </View>
-                    <Ionicons name="add-circle" size={24} color={colors.primary} />
-                  </TouchableOpacity>
-                ))
+                <>
+                  {filteredCatalog.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.catalogItemRow}
+                      onPress={() => handleAddExerciseFromCatalog(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.catalogItemName}>{item.name}</Text>
+                        <Text style={styles.catalogItemCat}>{item.category}</Text>
+                      </View>
+                      <Ionicons name="add-circle" size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                  ))}
+                  {catalogItems.length < catalogTotal && (
+                    <TouchableOpacity
+                      style={styles.loadMoreBtn}
+                      onPress={() => loadCatalog(catalogItems.length, true)}
+                      disabled={loadingMore}
+                    >
+                      {loadingMore ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Text style={styles.loadMoreText}>
+                          Carregar mais ({catalogItems.length} de {catalogTotal})
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </ScrollView>
           </View>
@@ -539,30 +537,6 @@ const createStyles = (colors: any, isDark: boolean) =>
       fontFamily: "Poppins_500Medium",
       fontSize: 14,
       color: colors.text.primary,
-    },
-    chipsScroll: {
-      gap: 8,
-    },
-    catChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    catChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    catChipText: {
-      fontFamily: "Poppins_500Medium",
-      fontSize: 12,
-      color: colors.text.secondary,
-    },
-    catChipTextActive: {
-      color: "#FFFFFF",
-      fontFamily: "Poppins_600SemiBold",
     },
     exercisesSectionHeader: {
       flexDirection: "row",
@@ -780,5 +754,18 @@ const createStyles = (colors: any, isDark: boolean) =>
       fontSize: 11,
       color: colors.text.tertiary,
       marginTop: 2,
+    },
+    loadMoreBtn: {
+      marginTop: 12,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      alignItems: "center",
+    },
+    loadMoreText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 12,
+      color: colors.primary,
     },
   });

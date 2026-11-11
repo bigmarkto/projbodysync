@@ -16,7 +16,7 @@ import { PlanDetail as PlanDetailType } from "./types";
 interface Props {
   plan: PlanDetailType;
   onStart: () => void;
-  onEdit: () => void;
+  onEdit?: () => void;
   onBack: () => void;
 }
 
@@ -41,13 +41,19 @@ const PlanDetail = ({ plan, onStart, onEdit, onBack }: Props) => {
         <Text style={styles.headerTitle} numberOfLines={1}>
           Detalhes do Treino
         </Text>
-        <TouchableOpacity
-          onPress={onEdit}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={styles.iconBtn}
-        >
-          <Ionicons name="create-outline" size={20} color={colors.text.primary} />
-        </TouchableOpacity>
+        {onEdit ? (
+          <TouchableOpacity
+            onPress={onEdit}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.iconBtn}
+          >
+            <Ionicons name="create-outline" size={20} color={colors.text.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.iconBtn} accessibilityLabel="Treino prescrito pelo Personal">
+            <Ionicons name="lock-closed-outline" size={18} color={colors.text.tertiary} />
+          </View>
+        )}
       </View>
 
       {/* Plan Hero Card */}
@@ -90,8 +96,15 @@ const PlanDetail = ({ plan, onStart, onEdit, onBack }: Props) => {
               <Text style={styles.exName} numberOfLines={1}>
                 {ex.exercise?.name ?? `Exercício #${ex.exerciseId}`}
               </Text>
-              {!!ex.exercise?.category && (
-                <Text style={styles.exCat}>{ex.exercise.category}</Text>
+              {!!(ex.exercise?.category || ex.restSeconds) && (
+                <Text style={styles.exCat}>
+                  {[
+                    ex.exercise?.category,
+                    ex.restSeconds ? `Descanso ${ex.restSeconds}s` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")}
+                </Text>
               )}
             </View>
             <View style={styles.setsPill}>

@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../context/ThemeProvider";
+import { useTabFocus } from "../../context/TabFocusContext";
 import { useApi } from "../../hooks/useApi";
 import { lightColors } from "../../theme/colors";
 
@@ -50,6 +51,7 @@ const parseNum = (v: string): number | null => {
 
 const ProgressScreen = () => {
   const { colors, isDark } = useTheme();
+  const { focusTick } = useTabFocus("progress");
   const { request } = useApi();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -85,6 +87,10 @@ const ProgressScreen = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (focusTick > 0) load();
+  }, [focusTick, load]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

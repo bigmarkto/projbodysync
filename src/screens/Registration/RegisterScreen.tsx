@@ -28,7 +28,7 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isPersonal = data.role === 'personal';
-  const total = isPersonal ? 2 : 7;
+  const total = isPersonal ? 3 : 7;
 
   const goNext = () => setStepIdx((i) => i + 1);
   const goBack = () => setStepIdx((i) => (i > 0 ? i - 1 : 0));
@@ -98,10 +98,17 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
           onNext={goNext}
           onBack={goBack}
         />,
+        <Step2Subscription
+          key="s2"
+          totalSteps={total}
+          currentStep={2}
+          onNext={goNext}
+          onBack={goBack}
+        />,
         <Step7Confirmation
           key="s7"
           totalSteps={total}
-          currentStep={2}
+          currentStep={3}
           onConfirm={handleConfirm}
           onBack={goBack}
           onEdit={(s) => setStepIdx(s - 1)}

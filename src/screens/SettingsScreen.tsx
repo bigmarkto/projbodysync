@@ -17,6 +17,7 @@ import { useAuth } from "../context/AuthContext";
 import { useApi } from "../hooks/useApi";
 import { createTrainerApi } from "./Trainer/trainerService";
 import { MyTrainerData, TrainerLookupData, getInitials } from "./Trainer/trainerTypes";
+import { ConfirmModal } from "../components/ConfirmModal";
 
 const SettingsScreen = () => {
   const { isDark, toggleTheme, colors } = useTheme();
@@ -40,6 +41,7 @@ const SettingsScreen = () => {
 
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const loadMyTrainer = useCallback(async () => {
     if (!isStudent) return;
@@ -309,7 +311,7 @@ const SettingsScreen = () => {
 
         <TouchableOpacity
           style={[styles.logoutBtn, { borderColor: colors.error }]}
-          onPress={logout}
+          onPress={() => setShowLogoutModal(true)}
           activeOpacity={0.8}
         >
           <Ionicons
@@ -413,6 +415,19 @@ const SettingsScreen = () => {
           </View>
         </View>
       </Modal>
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Sair da conta?"
+        message="Você deseja encerrar sua sessão atual no BodySync?"
+        cancelLabel="Cancelar"
+        confirmLabel="Sair"
+        destructive
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={async () => {
+          setShowLogoutModal(false);
+          await logout();
+        }}
+      />
     </View>
   );
 };

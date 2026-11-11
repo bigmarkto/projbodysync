@@ -8,7 +8,6 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +16,7 @@ import { useApi } from "../../hooks/useApi";
 import { lightColors } from "../../theme/colors";
 import { EditablePlan, PlanExercise } from "./types";
 import ExercisePicker from "./ExercisePicker";
+import { ConfirmModal } from "../../components/ConfirmModal";
 
 interface Props {
   initial: EditablePlan;
@@ -35,6 +35,7 @@ const PlanEditor = ({ initial, onSaved, onCancel }: Props) => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const isNew = initial.id === null;
 
@@ -103,10 +104,7 @@ const PlanEditor = ({ initial, onSaved, onCancel }: Props) => {
   }, [name, exercises, isNew, initial.id, request, onSaved]);
 
   const confirmCancel = () => {
-    Alert.alert("Descartar alterações?", "As mudanças não salvas serão perdidas.", [
-      { text: "Continuar editando", style: "cancel" },
-      { text: "Descartar", style: "destructive", onPress: onCancel },
-    ]);
+    setShowCancelConfirm(true);
   };
 
   const existingIds = exercises.map((e) => e.exerciseId);
@@ -220,6 +218,20 @@ const PlanEditor = ({ initial, onSaved, onCancel }: Props) => {
         onClose={() => setPickerOpen(false)}
         onConfirm={addPicked}
         existingIds={existingIds}
+      />
+
+      <ConfirmModal
+        visible={showCancelConfirm}
+        title="Descartar alterações?"
+        message="As mudanças não salvas serão perdidas."
+        cancelLabel="Continuar editando"
+        confirmLabel="Descartar"
+        destructive
+        onCancel={() => setShowCancelConfirm(false)}
+        onConfirm={() => {
+          setShowCancelConfirm(false);
+          onCancel();
+        }}
       />
     </View>
   );

@@ -169,20 +169,25 @@ export const TrainerAnalyticsScreen = ({ onGoToStudents, onSelectStudentId }: Pr
             <>
               <Text style={styles.sectionTitle}>Alunos em Atenção</Text>
               {analytics.attentionStudents.map((att) => (
-                <TouchableOpacity
-                  key={att.studentId}
-                  style={styles.warningCard}
-                  onPress={() => onSelectStudentId?.(att.studentId)}
-                  activeOpacity={0.8}
-                >
+                <View key={att.studentId} style={styles.warningCard}>
                   <View style={styles.warningTop}>
-                    <View style={styles.warningIcon}>
-                      <Ionicons name="alert-circle" size={20} color={colors.error} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.warningName}>{att.name}</Text>
-                      <Text style={styles.warningReason}>Sem registrar treino há {att.daysInactive} dias</Text>
-                    </View>
+                    <TouchableOpacity
+                      style={styles.warningLinkArea}
+                      onPress={() => onSelectStudentId?.(att.studentId)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.warningIcon}>
+                        <Ionicons name="alert-circle" size={20} color={colors.error} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.warningName}>{att.name}</Text>
+                        <Text style={styles.warningReason}>
+                          {att.neverTrained
+                            ? `Vinculado há ${att.daysInactive} dias sem treinos`
+                            : `Sem registrar treino há ${att.daysInactive} dias`}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.reminderBtn}
                       onPress={() => handleSendReminder(att.name)}
@@ -192,7 +197,7 @@ export const TrainerAnalyticsScreen = ({ onGoToStudents, onSelectStudentId }: Pr
                       <Text style={styles.reminderBtnText}>Cobrar</Text>
                     </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
+                </View>
               ))}
             </>
           )}
@@ -432,6 +437,12 @@ const createStyles = (colors: any, isDark: boolean) =>
       marginBottom: 12,
     },
     warningTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    warningLinkArea: {
+      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       gap: 12,

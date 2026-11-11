@@ -6,12 +6,13 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeProvider";
+import { useAuth } from "../../context/AuthContext";
 import { useApi } from "../../hooks/useApi";
+import { ConfirmModal } from "../../components/ConfirmModal";
 import { createTrainerApi } from "./trainerService";
 import { Student, getInitials } from "./trainerTypes";
 
@@ -37,6 +38,7 @@ export const StudentDetailScreen = ({
   onDisconnected,
 }: Props) => {
   const { colors, isDark } = useTheme();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const { request } = useApi();
   const trainerApi = useMemo(() => createTrainerApi(request), [request]);
@@ -44,10 +46,13 @@ export const StudentDetailScreen = ({
   const [student, setStudent] = useState<Student | null>(initialStudent ?? null);
   const [loading, setLoading] = useState(!initialStudent);
   const [error, setError] = useState<string | null>(null);
+  const [localNotice, setLocalNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("plans");
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [pendingDeletePlan, setPendingDeletePlan] = useState<{ id: number; name: string } | null>(null);
+  const [deletingPlan, setDeletingPlan] = useState(false);
 
   const loadDetail = useCallback(async () => {
     setError(null);
@@ -77,6 +82,24 @@ export const StudentDetailScreen = ({
       setError(e instanceof Error ? e.message : "Erro ao desvincular aluno.");
     } finally {
       setDisconnecting(false);
+    }
+  };
+
+  const handleConfirmDeletePlan = async () => {
+    if (!pendingDeletePlan) return;
+    setDeletingPlan(true);
+    setError(null);
+    try {
+      await trainerApi.deletePrescribedPlan(pendingDeletePlan.id);
+      const removedName = pendingDeletePlan.name;
+      setPendingDeletePlan(null);
+      setLocalNotice(`Ficha "${removedName}" excluída com sucesso.`);
+      await loadDetail();
+    } catch (e) {
+      setPendingDeletePlan(null);
+      setError(e instanceof Error ? e.message : "Erro ao excluir ficha prescrita.");
+    } finally {
+      setDeletingPlan(false);
     }
   };
 
@@ -139,15 +162,18 @@ export const StudentDetailScreen = ({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
       >
-        {!!noticeMessage && (
+        {!!(localNotice || noticeMessage) && (
           <View style={styles.successBanner}>
             <Ionicons name="checkmark-circle" size={18} color={colors.success} style={{ marginRight: 8 }} />
-            <Text style={styles.successBannerText}>{noticeMessage}</Text>
-            {onClearNotice && (
-              <TouchableOpacity onPress={onClearNotice}>
-                <Ionicons name="close" size={16} color={colors.success} />
-              </TouchableOpacity>
-            )}
+            <Text style={styles.successBannerText}>{localNotice || noticeMessage}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setLocalNotice(null);
+                onClearNotice?.();
+              }}
+            >
+              <Ionicons name="close" size={16} color={colors.success} />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -284,26 +310,38 @@ export const StudentDetailScreen = ({
 
                 return (
                   <View key={plan.id} style={styles.planCard}>
-                    <TouchableOpacity
-                      style={styles.planCardHeader}
-                      onPress={() => setExpandedPlanId(isExpanded ? null : plan.id)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.planCategoryPill}>
-                          <Text style={styles.planCategoryText}>{plan.category}</Text>
+                    <View style={styles.planCardHeader}>
+                      <TouchableOpacity
+                        style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
+                        onPress={() => setExpandedPlanId(isExpanded ? null : plan.id)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.planCategoryPill}>
+                            <Text style={styles.planCategoryText}>{plan.category}</Text>
+                          </View>
+                          <Text style={styles.planName}>{plan.name}</Text>
+                          <Text style={styles.planMeta}>
+                            {plan.exerciseCount} exercícios • ~{plan.estimatedMinutes} min • Atribuído em {plan.assignedAt}
+                          </Text>
                         </View>
-                        <Text style={styles.planName}>{plan.name}</Text>
-                        <Text style={styles.planMeta}>
-                          {plan.exerciseCount} exercícios • ~{plan.estimatedMinutes} min • Atribuído em {plan.assignedAt}
-                        </Text>
-                      </View>
-                      <Ionicons
-                        name={isExpanded ? "chevron-up" : "chevron-down"}
-                        size={20}
-                        color={colors.text.tertiary}
-                      />
-                    </TouchableOpacity>
+                        <Ionicons
+                          name={isExpanded ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color={colors.text.tertiary}
+                        />
+                      </TouchableOpacity>
+                      {!!plan.createdByTrainerId && plan.createdByTrainerId === user?.id && (
+                        <TouchableOpacity
+                          style={styles.deletePlanBtn}
+                          onPress={() => setPendingDeletePlan({ id: plan.id, name: plan.name })}
+                          activeOpacity={0.7}
+                          accessibilityLabel={`Excluir ficha ${plan.name}`}
+                        >
+                          <Ionicons name="trash-outline" size={18} color={colors.error} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
 
                     {/* Exercícios Expandidos */}
                     {isExpanded && (
@@ -430,42 +468,29 @@ export const StudentDetailScreen = ({
         </TouchableOpacity>
       </View>
 
-      {/* Modal de Confirmação para Desvincular Aluno (Cross-Platform Mobile + Web) */}
-      <Modal
+      <ConfirmModal
         visible={showDisconnectModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDisconnectModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Desvincular aluno?</Text>
-            <Text style={styles.modalBody}>
-              Você deseja encerrar o acompanhamento de {student.name}? Os treinos já prescritos continuarão salvos no histórico do aluno.
-            </Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setShowDisconnectModal(false)}
-                disabled={disconnecting}
-              >
-                <Text style={styles.modalCancelText}>Manter</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalConfirmBtn, disconnecting && { opacity: 0.7 }]}
-                onPress={handleConfirmDisconnect}
-                disabled={disconnecting}
-              >
-                {disconnecting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalConfirmText}>Desvincular</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        title="Desvincular aluno?"
+        message={`Você deseja encerrar o acompanhamento de ${student.name}? Os treinos já prescritos continuarão salvos no histórico do aluno.`}
+        cancelLabel="Manter"
+        confirmLabel="Desvincular"
+        destructive
+        loading={disconnecting}
+        onCancel={() => setShowDisconnectModal(false)}
+        onConfirm={handleConfirmDisconnect}
+      />
+
+      <ConfirmModal
+        visible={!!pendingDeletePlan}
+        title="Excluir ficha prescrita?"
+        message={`Deseja excluir "${pendingDeletePlan?.name ?? ""}" do aluno? O histórico de sessões já realizadas será preservado.`}
+        cancelLabel="Cancelar"
+        confirmLabel="Excluir"
+        destructive
+        loading={deletingPlan}
+        onCancel={() => setPendingDeletePlan(null)}
+        onConfirm={handleConfirmDeletePlan}
+      />
     </View>
   );
 };
@@ -636,6 +661,15 @@ const createStyles = (colors: any, isDark: boolean) =>
       flexDirection: "row",
       alignItems: "center",
       padding: 16,
+      gap: 10,
+    },
+    deletePlanBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: isDark ? "rgba(239, 68, 68, 0.14)" : "#FEF2F2",
+      alignItems: "center",
+      justifyContent: "center",
     },
     planCategoryPill: {
       backgroundColor: isDark ? colors.surfaceVariant : "#F1F5F9",
@@ -953,65 +987,5 @@ const createStyles = (colors: any, isDark: boolean) =>
       fontSize: 13,
       color: colors.text.secondary,
       textAlign: "center",
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.55)",
-      justifyContent: "center",
-      alignItems: "center",
-      padding: 20,
-    },
-    modalCard: {
-      width: "100%",
-      maxWidth: 420,
-      backgroundColor: colors.surface,
-      borderRadius: 20,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    modalTitle: {
-      fontFamily: "Poppins_700Bold",
-      fontSize: 17,
-      color: colors.text.primary,
-      marginBottom: 8,
-    },
-    modalBody: {
-      fontFamily: "Poppins_400Regular",
-      fontSize: 13,
-      color: colors.text.secondary,
-      lineHeight: 20,
-      marginBottom: 18,
-    },
-    modalActions: {
-      flexDirection: "row",
-      gap: 10,
-    },
-    modalCancelBtn: {
-      flex: 1,
-      height: 44,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    modalCancelText: {
-      fontFamily: "Poppins_600SemiBold",
-      fontSize: 14,
-      color: colors.text.primary,
-    },
-    modalConfirmBtn: {
-      flex: 1,
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: colors.error,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    modalConfirmText: {
-      fontFamily: "Poppins_600SemiBold",
-      fontSize: 14,
-      color: "#FFFFFF",
     },
   });

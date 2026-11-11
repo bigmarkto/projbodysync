@@ -4,6 +4,7 @@ export interface StudentWorkoutPlan {
   id: number;
   name: string;
   category: string;
+  createdByTrainerId?: string | null;
   exerciseCount: number;
   estimatedMinutes: number;
   assignedAt: string;
@@ -65,6 +66,7 @@ export interface TrainerAnalyticsData {
     studentId: string;
     name: string;
     daysInactive: number;
+    neverTrained?: boolean;
   }[];
   ranking: {
     studentId: string;

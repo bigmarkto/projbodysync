@@ -6,15 +6,16 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets, SafeAreaProvider } from "react-native-safe-area-context";
 import { useTheme } from "../../context/ThemeProvider";
+import { useTabFocus } from "../../context/TabFocusContext";
 import { useApi } from "../../hooks/useApi";
 import { lightColors } from "../../theme/colors";
+import { ConfirmModal } from "../../components/ConfirmModal";
 import {
   EditablePlan,
   PlanDetail,
@@ -38,6 +39,7 @@ const SUB_LABELS: Record<string, string> = {
 
 const WorkoutsScreen = () => {
   const { colors, isDark } = useTheme();
+  const { focusTick } = useTabFocus("workouts");
   const { request } = useApi();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -53,6 +55,8 @@ const WorkoutsScreen = () => {
   const [runningPlan, setRunningPlan] = useState<PlanDetail | null>(null);
   const [hiitSetup, setHiitSetup] = useState(false);
   const [hiitScript, setHiitScript] = useState<HiitSegment[] | null>(null);
+  const [pendingDeletePlan, setPendingDeletePlan] = useState<PlanSummary | null>(null);
+  const [deletingPlan, setDeletingPlan] = useState(false);
 
   // Geração de plano por IA (tela de carregamento animada)
   const [genPreparing, setGenPreparing] = useState(false);
@@ -79,6 +83,10 @@ const WorkoutsScreen = () => {
   useEffect(() => {
     loadList();
   }, [loadList]);
+
+  useEffect(() => {
+    if (focusTick > 0) loadList();
+  }, [focusTick, loadList]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -164,27 +172,27 @@ const WorkoutsScreen = () => {
     setHiitScript(script);
   }, []);
 
-  const onDelete = useCallback(
-    (plan: PlanSummary) => {
-      Alert.alert("Excluir plano", `Excluir "${plan.name}"?`, [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const res = await request(`/workouts/${plan.id}`, { method: "DELETE" });
-              if (!res.ok && res.status !== 204) throw new Error();
-              loadList();
-            } catch {
-              setError("Não foi possível excluir o plano.");
-            }
-          },
-        },
-      ]);
-    },
-    [request, loadList],
-  );
+  const onDelete = useCallback((plan: PlanSummary) => {
+    setPendingDeletePlan(plan);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDeletePlan) return;
+    setDeletingPlan(true);
+    try {
+      const res = await request(`/workouts/${pendingDeletePlan.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) throw new Error();
+      setPendingDeletePlan(null);
+      loadList();
+    } catch {
+      setPendingDeletePlan(null);
+      setError("Não foi possível excluir o plano.");
+    } finally {
+      setDeletingPlan(false);
+    }
+  }, [pendingDeletePlan, request, loadList]);
 
   if (editing) {
     return (
@@ -256,14 +264,18 @@ const WorkoutsScreen = () => {
       <PlanDetailView
         plan={detailPlan}
         onStart={() => onStartPlan(detailPlan)}
-        onEdit={() => {
-          setEditing({
-            id: detailPlan.id,
-            name: detailPlan.name,
-            exercises: detailPlan.exercises,
-          });
-          setDetailPlan(null);
-        }}
+        onEdit={
+          detailPlan.createdByTrainerId
+            ? undefined
+            : () => {
+                setEditing({
+                  id: detailPlan.id,
+                  name: detailPlan.name,
+                  exercises: detailPlan.exercises,
+                });
+                setDetailPlan(null);
+              }
+        }
         onBack={() => setDetailPlan(null)}
       />
     );
@@ -403,19 +415,33 @@ const WorkoutsScreen = () => {
                     {plan.exerciseCount === 1 ? "exercício" : "exercícios"}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => onDelete(plan)}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  style={styles.trashBtn}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.text.tertiary} />
-                </TouchableOpacity>
+                {!plan.createdByTrainerId && (
+                  <TouchableOpacity
+                    onPress={() => onDelete(plan)}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    style={styles.trashBtn}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.text.tertiary} />
+                  </TouchableOpacity>
+                )}
                 <Ionicons name="chevron-forward" size={18} color={colors.text.tertiary} style={{ marginLeft: 8 }} />
               </TouchableOpacity>
             ))
           )}
         </ScrollView>
       )}
+
+      <ConfirmModal
+        visible={!!pendingDeletePlan}
+        title="Excluir plano"
+        message={`Deseja realmente excluir "${pendingDeletePlan?.name ?? ""}"?`}
+        cancelLabel="Cancelar"
+        confirmLabel="Excluir"
+        destructive
+        loading={deletingPlan}
+        onCancel={() => setPendingDeletePlan(null)}
+        onConfirm={confirmDelete}
+      />
     </View>
   );
 };

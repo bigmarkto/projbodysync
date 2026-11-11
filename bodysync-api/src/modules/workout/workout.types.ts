@@ -8,6 +8,7 @@ export interface PlanExercise {
   sets: number
   reps: number
   orderIndex: number
+  restSeconds?: number
   exercise: Pick<
     Exercise,
     'id' | 'name' | 'category' | 'imageUrl' | 'muscles'
@@ -19,6 +20,7 @@ export interface WorkoutPlan {
   userId: string
   name: string
   createdAt: string
+  createdByTrainerId?: string | null
   exercises: PlanExercise[]
 }
 
@@ -27,6 +29,7 @@ export interface WorkoutPlanSummary {
   id: number
   name: string
   createdAt: string
+  createdByTrainerId?: string | null
   exerciseCount: number
 }
 
@@ -35,6 +38,7 @@ export interface PlanExerciseInput {
   exerciseId: number
   sets: number
   reps: number
+  restSeconds?: number
 }
 
 export interface CreatePlanRequest {

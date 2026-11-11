@@ -5,6 +5,7 @@ import {
   PlanNotFoundError,
   ValidationError,
   SubscriptionLimitError,
+  ForbiddenPlanError,
 } from './workout.service'
 import { CreatePlanRequest, UpdatePlanRequest } from './workout.types'
 
@@ -16,7 +17,7 @@ function handle(error: unknown, res: Response, next: NextFunction) {
   if (error instanceof ValidationError) {
     return res.status(400).json({ error: error.message })
   }
-  if (error instanceof SubscriptionLimitError) {
+  if (error instanceof SubscriptionLimitError || error instanceof ForbiddenPlanError) {
     return res.status(403).json({ error: error.message })
   }
   next(error)

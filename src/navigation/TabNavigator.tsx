@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { View, Dimensions, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { TabView, SceneMap } from "react-native-tab-view";
 import { useTheme } from "../context/ThemeProvider";
+import { TabFocusContext, StudentTabKey } from "../context/TabFocusContext";
 import { HomeScreen, WorkoutsScreen, ProgressScreen, SettingsScreen } from "../screens";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +13,12 @@ const TabNavigator = () => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(0);
+  const [visitTick, setVisitTick] = useState<Record<StudentTabKey, number>>({
+    home: 0,
+    workouts: 0,
+    progress: 0,
+    settings: 0,
+  });
 
   const [routes] = useState([
     { key: "home", title: "Início", icon: "flash" },
@@ -19,6 +26,34 @@ const TabNavigator = () => {
     { key: "progress", title: "Progresso", icon: "stats-chart" },
     { key: "settings", title: "Ajustes", icon: "settings" },
   ]);
+
+  const handleIndexChange = useCallback(
+    (nextIndex: number) => {
+      setIndex(nextIndex);
+      const nextKey = routes[nextIndex]?.key as StudentTabKey | undefined;
+      if (nextKey) {
+        setVisitTick((prev) => ({ ...prev, [nextKey]: (prev[nextKey] ?? 0) + 1 }));
+      }
+    },
+    [routes]
+  );
+
+  const navigateTab = useCallback(
+    (tabKey: StudentTabKey) => {
+      const idx = routes.findIndex((r) => r.key === tabKey);
+      if (idx >= 0) handleIndexChange(idx);
+    },
+    [routes, handleIndexChange]
+  );
+
+  const tabFocusValue = useMemo(
+    () => ({
+      activeTab: (routes[index]?.key ?? "home") as StudentTabKey,
+      visitTick,
+      navigateTab,
+    }),
+    [routes, index, visitTick, navigateTab]
+  );
 
   const renderScene = SceneMap({
     home: HomeScreen,
@@ -58,7 +93,7 @@ const TabNavigator = () => {
           return (
             <TouchableOpacity
               key={route.key}
-              onPress={() => setIndex(i)}
+              onPress={() => handleIndexChange(i)}
               activeOpacity={0.7}
               style={styles.tabItem}
             >
@@ -98,15 +133,17 @@ const TabNavigator = () => {
   };
 
   return (
-    <TabView
-      navigationState={{ index, routes }}
-      renderScene={renderScene}
-      onIndexChange={setIndex}
-      initialLayout={initialLayout}
-      renderTabBar={renderTabBar}
-      swipeEnabled={false}
-      tabBarPosition="bottom"
-    />
+    <TabFocusContext.Provider value={tabFocusValue}>
+      <TabView
+        navigationState={{ index, routes }}
+        renderScene={renderScene}
+        onIndexChange={handleIndexChange}
+        initialLayout={initialLayout}
+        renderTabBar={renderTabBar}
+        swipeEnabled={false}
+        tabBarPosition="bottom"
+      />
+    </TabFocusContext.Provider>
   );
 };
 

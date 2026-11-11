@@ -20,6 +20,7 @@ export class PlanNotFoundError extends Error {
 }
 export class ValidationError extends Error {}
 export class SubscriptionLimitError extends Error {}
+export class ForbiddenPlanError extends Error {}
 
 const FREE_PLAN_LIMIT = 2
 
@@ -73,7 +74,7 @@ async function countPlans(
   queryable: { query: typeof db.query } = db
 ): Promise<number> {
   const r = await queryable.query(
-    'SELECT COUNT(*)::int AS total FROM workout_plans WHERE user_id = $1',
+    'SELECT COUNT(*)::int AS total FROM workout_plans WHERE user_id = $1 AND created_by_trainer_id IS NULL',
     [userId]
   )
   return r.rows[0].total
@@ -116,9 +117,9 @@ async function insertPlanExercises(
   for (let i = 0; i < exercises.length; i++) {
     const ex = exercises[i]
     await client.query(
-      `INSERT INTO plan_exercises (plan_id, exercise_id, sets, reps, order_index)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [planId, ex.exerciseId, ex.sets, ex.reps, i]
+      `INSERT INTO plan_exercises (plan_id, exercise_id, sets, reps, order_index, rest_seconds)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [planId, ex.exerciseId, ex.sets, ex.reps, i, ex.restSeconds ?? 60]
     )
   }
 }
@@ -144,7 +145,8 @@ export const workoutService = {
 
   async listWithMeta(userId: string): Promise<WorkoutPlansResult> {
     const plans = await this.listByUser(userId)
-    const meta = await computeEligibility(userId, plans.length)
+    const ownPlansCount = plans.filter((p) => !p.createdByTrainerId).length
+    const meta = await computeEligibility(userId, ownPlansCount)
     return { plans, meta }
   },
 
@@ -241,6 +243,7 @@ export const workoutService = {
          pe.sets,
          pe.reps,
          pe.order_index AS "orderIndex",
+         COALESCE(pe.rest_seconds, 60)::int AS "restSeconds",
          json_build_object(
            'id', e.id,
            'name', COALESCE(NULLIF(e.name_pt, ''), e.name),
@@ -318,11 +321,16 @@ export const workoutService = {
     data: UpdatePlanRequest
   ): Promise<WorkoutPlan> {
     const owns = await db.query(
-      'SELECT id FROM workout_plans WHERE id = $1 AND user_id = $2',
+      'SELECT id, created_by_trainer_id FROM workout_plans WHERE id = $1 AND user_id = $2',
       [planId, userId]
     )
     if (owns.rows.length === 0) {
       throw new PlanNotFoundError()
+    }
+    if (owns.rows[0].created_by_trainer_id) {
+      throw new ForbiddenPlanError(
+        'Treinos prescritos pelo seu Personal Trainer não podem ser alterados por você.'
+      )
     }
 
     if (data.name !== undefined && data.name.trim().length === 0) {
@@ -362,11 +370,16 @@ export const workoutService = {
 
   async remove(userId: string, planId: number): Promise<void> {
     const owns = await db.query(
-      'SELECT id FROM workout_plans WHERE id = $1 AND user_id = $2',
+      'SELECT id, created_by_trainer_id FROM workout_plans WHERE id = $1 AND user_id = $2',
       [planId, userId]
     )
     if (owns.rows.length === 0) {
       throw new PlanNotFoundError()
+    }
+    if (owns.rows[0].created_by_trainer_id) {
+      throw new ForbiddenPlanError(
+        'Treinos prescritos pelo seu Personal Trainer não podem ser excluídos por você.'
+      )
     }
 
     const client = await db.connect()

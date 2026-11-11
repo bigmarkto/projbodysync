@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeProvider";
+import { useTabFocus } from "../context/TabFocusContext";
 import { useApi } from "../hooks/useApi";
 import { lightColors } from "../theme/colors";
 import HydrationCard from "../components/HydrationCard";
@@ -77,10 +78,15 @@ const buildWeek = (schedule: WorkoutSchedule | null) => {
 const HomeScreen = () => {
   const { user } = useAuth();
   const { colors, isDark } = useTheme();
+  const { focusTick, navigateTab } = useTabFocus("home");
   const { request } = useApi();
   const insets = useSafeAreaInsets();
 
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [trainerBanner, setTrainerBanner] = useState<{
+    trainerName: string;
+    prescribedCount: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,12 +105,30 @@ const HomeScreen = () => {
   const loadProfile = useCallback(async () => {
     setError(null);
     try {
-      const res = await request("/profile");
+      const [res, myTrainerRes, workoutsRes] = await Promise.all([
+        request("/profile"),
+        request("/trainer/my-trainer").catch(() => null),
+        request("/workouts").catch(() => null),
+      ]);
       if (!res.ok) {
         throw new Error("Não foi possível carregar seu perfil.");
       }
       const data = await res.json();
       setProfile(data.profile ?? null);
+
+      if (myTrainerRes?.ok && workoutsRes?.ok) {
+        const tData = await myTrainerRes.json().catch(() => null);
+        const wData = await workoutsRes.json().catch(() => null);
+        const prescribed = (wData?.plans || []).filter((p: any) => !!p.createdByTrainerId);
+        if (tData?.connected && tData.trainer?.name && prescribed.length > 0) {
+          setTrainerBanner({
+            trainerName: tData.trainer.name,
+            prescribedCount: prescribed.length,
+          });
+        } else {
+          setTrainerBanner(null);
+        }
+      }
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Erro ao carregar seus dados.",
@@ -118,6 +142,10 @@ const HomeScreen = () => {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (focusTick > 0) loadProfile();
+  }, [focusTick, loadProfile]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -166,16 +194,6 @@ const HomeScreen = () => {
               <Text style={styles.userNameText}>{user?.name ?? "Atleta"} 👋</Text>
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.iconButton}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={20}
-              color={colors.text.primary}
-            />
-          </TouchableOpacity>
         </View>
 
         {/* ─── Hero Banner: Status dos Treinos ─────────────────────────── */}
@@ -201,6 +219,34 @@ const HomeScreen = () => {
             </Text>
           </View>
         </View>
+
+        {/* ─── Card de Destaque: Ficha Prescrita pelo Personal ─────────── */}
+        {trainerBanner && (
+          <TouchableOpacity
+            style={styles.trainerBannerCard}
+            onPress={() => navigateTab("workouts")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.trainerBannerIcon}>
+              <Ionicons name="barbell" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.trainerBannerTitle}>
+                Ficha Prescrita por {trainerBanner.trainerName}
+              </Text>
+              <Text style={styles.trainerBannerSub}>
+                {trainerBanner.prescribedCount}{" "}
+                {trainerBanner.prescribedCount === 1
+                  ? "treino ativo aguardando você"
+                  : "treinos ativos aguardando você"}
+              </Text>
+            </View>
+            <View style={styles.trainerBannerCta}>
+              <Text style={styles.trainerBannerCtaText}>Iniciar</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.success} />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {error && (
           <View style={styles.errorBox}>
@@ -418,16 +464,6 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       color: colors.text.primary,
       marginTop: -2,
     },
-    iconButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-    },
 
     // Hero Card
     heroCard: {
@@ -466,6 +502,50 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       fontSize: 12,
       color: colors.text.secondary,
       lineHeight: 18,
+    },
+    trainerBannerCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      backgroundColor: isDark ? colors.surface : "#ECFDF5",
+      borderRadius: 18,
+      borderWidth: 1.5,
+      borderColor: colors.success + "55",
+      padding: 14,
+      marginBottom: 16,
+    },
+    trainerBannerIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: colors.success,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    trainerBannerTitle: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 14,
+      color: colors.text.primary,
+    },
+    trainerBannerSub: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 12,
+      color: colors.text.secondary,
+      marginTop: 1,
+    },
+    trainerBannerCta: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
+      backgroundColor: colors.successLight,
+    },
+    trainerBannerCtaText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 12,
+      color: colors.success,
     },
 
     // Card genérico

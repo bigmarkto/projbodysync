@@ -91,4 +91,14 @@ export const trainerController = {
       next(err)
     }
   },
+
+  async deletePrescribedPlan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const rawId = Array.isArray(req.params.planId) ? req.params.planId[0] : req.params.planId
+      const result = await trainerService.deletePrescribedPlan(req.userId!, Number(rawId))
+      res.json(result)
+    } catch (err) {
+      next(err)
+    }
+  },
 }

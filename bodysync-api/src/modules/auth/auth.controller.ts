@@ -22,7 +22,6 @@ export const authController = {
         experienceLevel,
         activityLevel,
         role,
-        subscriptionType,
         hydrationReminder,
         hydrationTime,
         desiredModality,
@@ -137,23 +136,17 @@ export const authController = {
       // activityLevel é opcional agora
       const finalActivityLevel = activityLevel || 'moderado'
 
-      // role é opcional (padrão: comum)
+      // role é opcional (padrão: comum). Cadastro público nunca cria 'admin'.
       const finalRole = role || 'comum'
 
-      if (!['comum', 'admin', 'professor'].includes(finalRole)) {
-        return res.status(400).json({
-          error: 'Tipo de usuário inválido. Use: comum | admin | professor',
+      if (!['comum', 'professor'].includes(finalRole)) {
+        return res.status(403).json({
+          error: 'Tipo de usuário inválido para cadastro público. Use: comum | professor',
         })
       }
 
-      // subscriptionType (padrão: free)
-      const finalSubscriptionType = subscriptionType || 'free'
-
-      if (!['free', 'basic', 'premium'].includes(finalSubscriptionType)) {
-        return res.status(400).json({
-          error: 'Tipo de assinatura inválido. Use: free | basic | premium',
-        })
-      }
+      // Cadastro público inicia como 'free'; planos pagos são ativados via /payment/subscribe
+      const finalSubscriptionType = 'free'
 
       // desiredWeightKg (opcional)
       const finalDesiredWeightKg = desiredWeightKg

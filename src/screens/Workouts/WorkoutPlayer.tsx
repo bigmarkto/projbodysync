@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Alert,
   ScrollView,
   Animated,
   Easing,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../context/ThemeProvider";
 import { lightColors } from "../../theme/colors";
 import { PlanDetail, PlanExercise } from "./types";
+import { ConfirmModal } from "../../components/ConfirmModal";
 
 interface Props {
   plan: PlanDetail;
@@ -42,6 +42,7 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
   const [restKind, setRestKind] = useState<"set" | "exercise">("set");
   const [restLeft, setRestLeft] = useState(0);
   const [completedSets, setCompletedSets] = useState(0);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const current: PlanExercise | undefined = exercises[exIndex];
 
@@ -122,7 +123,7 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
 
     if (!isLastSet) {
       setRestKind("set");
-      setRestLeft(REST_BETWEEN_SETS);
+      setRestLeft(current.restSeconds ?? REST_BETWEEN_SETS);
       setPhase("rest");
     } else if (!isLastExercise) {
       setRestKind("exercise");
@@ -144,13 +145,26 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
   }, [exIndex, exercises.length]);
 
   const confirmExit = useCallback(() => {
-    Alert.alert("Sair do treino?", "Seu progresso neste treino será perdido.", [
-      { text: "Continuar treino", style: "cancel" },
-      { text: "Sair", style: "destructive", onPress: onExit },
-    ]);
-  }, [onExit]);
+    setShowExitConfirm(true);
+  }, []);
 
   const progress = totalSets > 0 ? completedSets / totalSets : 0;
+
+  const exitModal = (
+    <ConfirmModal
+      visible={showExitConfirm}
+      title="Sair do treino?"
+      message="Seu progresso neste treino será perdido."
+      cancelLabel="Continuar treino"
+      confirmLabel="Sair"
+      destructive
+      onCancel={() => setShowExitConfirm(false)}
+      onConfirm={() => {
+        setShowExitConfirm(false);
+        onExit();
+      }}
+    />
+  );
 
   // ─── Tela de conclusão ──────────────────────────────────────────────────────
   if (phase === "done") {
@@ -202,6 +216,7 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
             <Text style={styles.skipRestText}>Pular descanso</Text>
           </TouchableOpacity>
         </View>
+        {exitModal}
       </View>
     );
   }
@@ -273,6 +288,7 @@ const WorkoutPlayer = ({ plan, onExit, onCompleted }: Props) => {
           <Text style={styles.doneSetText}>Concluir série</Text>
         </TouchableOpacity>
       </View>
+      {exitModal}
     </View>
   );
 };

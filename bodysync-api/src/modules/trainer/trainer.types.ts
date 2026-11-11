@@ -35,11 +35,13 @@ export interface PrescribedPlanEntry {
   id: number
   name: string
   createdAt: string
+  createdByTrainerId?: string | null
   exerciseCount: number
   exercises: {
     id: number
     exerciseId: number
     name: string
+    category: string
     sets: number
     reps: number
     orderIndex: number
@@ -76,6 +78,7 @@ export interface AttentionStudent {
   studentId: string
   name: string
   daysInactive: number
+  neverTrained?: boolean
 }
 
 export interface StudentRankItem {

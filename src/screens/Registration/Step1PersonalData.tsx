@@ -1,10 +1,13 @@
 import React, { useState } from "react";
-import { Modal, View,
+import {
+  Modal,
+  View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +22,15 @@ const GENDERS: { label: string; value: Gender }[] = [
   { label: "Outro", value: "outro" },
   { label: "Prefiro não dizer", value: "nao_binario" },
 ];
+
+function normalizeBirthDate(raw: string): string | null {
+  const v = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  if (/^\d{4}$/.test(v)) return `${v}-01-01`;
+  return null;
+}
 
 interface Props {
   onNext: () => void;
@@ -35,14 +47,24 @@ export const Step1PersonalData = ({ onNext, onBack, totalSteps }: Props) => {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!data.name.trim()) e.name = "Informe seu nome.";
+    if (data.name.trim().length < 3) e.name = "Nome deve ter pelo menos 3 caracteres.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) e.email = "E-mail inválido.";
-    if (data.password.length < 8) e.password = "Mínimo 8 caracteres.";
+    if (data.password.length < 8) {
+      e.password = "Mínimo 8 caracteres.";
+    } else if (!/[A-Z]/.test(data.password) || !/[0-9]/.test(data.password)) {
+      e.password = "Use ao menos 1 letra maiúscula e 1 número.";
+    }
     if (data.password !== data.confirmPassword) e.confirmPassword = "As senhas não coincidem.";
-    const year = data.birthYear ? parseInt(data.birthYear.split('-')[0]) : NaN;
+
+    const normalized = normalizeBirthDate(data.birthYear);
+    const year = normalized ? parseInt(normalized.split("-")[0], 10) : NaN;
     const currentYear = new Date().getFullYear();
-    if (!data.birthYear || isNaN(year) || year < 1920 || year > currentYear - 10)
-      e.birthYear = "Data de nascimento inválida.";
+    if (!normalized || isNaN(year) || year < 1920 || year > currentYear - 10) {
+      e.birthYear = "Informe uma data válida (ex: 15/05/1998 ou 1998-05-15).";
+    } else if (normalized !== data.birthYear) {
+      setField("birthYear", normalized);
+    }
+
     if (!data.gender) e.gender = "Selecione um sexo.";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -124,38 +146,56 @@ export const Step1PersonalData = ({ onNext, onBack, totalSteps }: Props) => {
           }
         />
 
-        {/* Data de nascimento (apenas ano) */}
-        <TouchableOpacity style={s.timePickerBtn} onPress={() => setShowBirthPicker(true)}>
-          <Ionicons name="calendar-outline" size={18} color={lightColors.text.tertiary} style={{ marginRight: 10 }} />
-          <Text style={s.timePickerText}>{data.birthYear ? new Date(data.birthYear).getFullYear().toString() : 'Selecione o ano de nascimento'}</Text>
-        </TouchableOpacity>
-        {showBirthPicker && (
-          <Modal
-            visible={showBirthPicker}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowBirthPicker(false)}
-          >
-            <View style={s.modalBackdrop}>
-              <View style={s.modalContainer}>
-                <DateTimePicker
-                  mode="date"
-                  value={data.birthYear ? new Date(data.birthYear) : new Date()}
-                  display="spinner"
-                  maximumDate={new Date()}
-                  onValueChange={(_, selectedDate) => {
-                    setShowBirthPicker(false);
-                    if (selectedDate) {
-                      const iso = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
-                      setField('birthYear', iso);
-                      setErrors((e) => ({ ...e, birthYear: '' }));
-                    }
-                  }}
-                  onDismiss={() => setShowBirthPicker(false)}
-                />
-              </View>
-            </View>
-          </Modal>
+        {/* Data de nascimento */}
+        {Platform.OS === "web" ? (
+          <FieldInput
+            label="Data de nascimento"
+            placeholder="Ex: 15/05/1998 ou 1998-05-15"
+            leftIcon="calendar-outline"
+            value={data.birthYear}
+            onChangeText={(v) => {
+              setField("birthYear", v);
+              setErrors((e) => ({ ...e, birthYear: "" }));
+            }}
+            error={errors.birthYear}
+            maxLength={10}
+          />
+        ) : (
+          <>
+            <TouchableOpacity style={s.timePickerBtn} onPress={() => setShowBirthPicker(true)}>
+              <Ionicons name="calendar-outline" size={18} color={lightColors.text.tertiary} style={{ marginRight: 10 }} />
+              <Text style={s.timePickerText}>{data.birthYear ? new Date(data.birthYear).getFullYear().toString() : "Selecione o ano de nascimento"}</Text>
+            </TouchableOpacity>
+            {!!errors.birthYear && <Text style={s.errorText}>{errors.birthYear}</Text>}
+            {showBirthPicker && (
+              <Modal
+                visible={showBirthPicker}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowBirthPicker(false)}
+              >
+                <View style={s.modalBackdrop}>
+                  <View style={s.modalContainer}>
+                    <DateTimePicker
+                      mode="date"
+                      value={data.birthYear ? new Date(data.birthYear) : new Date()}
+                      display="spinner"
+                      maximumDate={new Date()}
+                      onValueChange={(_, selectedDate) => {
+                        setShowBirthPicker(false);
+                        if (selectedDate) {
+                          const iso = selectedDate.toISOString().split("T")[0];
+                          setField("birthYear", iso);
+                          setErrors((e) => ({ ...e, birthYear: "" }));
+                        }
+                      }}
+                      onDismiss={() => setShowBirthPicker(false)}
+                    />
+                  </View>
+                </View>
+              </Modal>
+            )}
+          </>
         )}
 
         {/* Sexo */}
@@ -195,7 +235,12 @@ export const Step1PersonalData = ({ onNext, onBack, totalSteps }: Props) => {
               label={role === "comum" ? "Comum" : "Personal"}
               icon={role === "comum" ? "person-outline" : "barbell-outline"}
               selected={data.role === role}
-              onPress={() => setField("role", role)}
+              onPress={() => {
+                if (role !== data.role) {
+                  setField("role", role);
+                  setField("subscriptionType", "");
+                }
+              }}
             />
           ))}
         </View>

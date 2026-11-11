@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   Animated,
   Easing,
 } from "react-native";
@@ -13,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../context/ThemeProvider";
 import { lightColors } from "../../theme/colors";
 import { HiitSegment } from "./hiit";
+import { ConfirmModal } from "../../components/ConfirmModal";
 
 interface Props {
   script: HiitSegment[];
@@ -35,6 +35,7 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
   const [secondsLeft, setSecondsLeft] = useState(script[0]?.durationSec ?? 60);
   const [paused, setPaused] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const segment = script[index];
   const isWork = segment?.type === "work";
@@ -99,10 +100,7 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
   };
 
   const confirmExit = () => {
-    Alert.alert("Sair do treino?", "Seu progresso neste cardio será perdido.", [
-      { text: "Continuar", style: "cancel" },
-      { text: "Sair", style: "destructive", onPress: onExit },
-    ]);
+    setShowExitConfirm(true);
   };
 
   const workDone = useMemo(
@@ -238,6 +236,20 @@ const HiitPlayer = ({ script, onExit, onCompleted }: Props) => {
           <Ionicons name="play-skip-forward" size={24} color={colors.text.primary} />
         </TouchableOpacity>
       </View>
+
+      <ConfirmModal
+        visible={showExitConfirm}
+        title="Sair do treino?"
+        message="Seu progresso neste cardio será perdido."
+        cancelLabel="Continuar"
+        confirmLabel="Sair"
+        destructive
+        onCancel={() => setShowExitConfirm(false)}
+        onConfirm={() => {
+          setShowExitConfirm(false);
+          onExit();
+        }}
+      />
     </View>
   );
 };

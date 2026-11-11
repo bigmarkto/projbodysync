@@ -26,6 +26,7 @@ export interface PlanExercise {
   sets: number;
   reps: number;
   orderIndex: number;
+  restSeconds?: number;
   exercise: ExerciseLite | null;
 }
 

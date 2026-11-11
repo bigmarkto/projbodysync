@@ -56,6 +56,7 @@ export const TrainerHomeScreen = ({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -102,15 +103,20 @@ export const TrainerHomeScreen = ({
 
   const handleCopyCode = async () => {
     if (!profile.inviteCode || profile.inviteCode === "---") return;
-    setCopied(true);
+    setCopyError(false);
     try {
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(profile.inviteCode);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2400);
+        return;
       }
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 2800);
     } catch {
-      // fallback silencioso se clipboard web indisponível
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 2800);
     }
-    setTimeout(() => setCopied(false), 2400);
   };
 
   const handleShareCode = async () => {
@@ -291,7 +297,7 @@ export const TrainerHomeScreen = ({
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={[styles.emptySubtitle, { marginTop: 12 }]}>Carregando alunos...</Text>
           </View>
-        ) : filteredStudents.length === 0 ? (
+        ) : error && students.length === 0 ? null : filteredStudents.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={48} color={colors.text.tertiary} style={{ marginBottom: 12 }} />
             <Text style={styles.emptyTitle}>
@@ -319,14 +325,13 @@ export const TrainerHomeScreen = ({
             const initials = getInitials(student.name, "AL");
 
             return (
-              <TouchableOpacity
-                key={student.id}
-                style={styles.studentCard}
-                onPress={() => onSelectStudent(student)}
-                activeOpacity={0.85}
-              >
-                {/* Linha Superior: Avatar, Nome e Meta */}
-                <View style={styles.studentTopRow}>
+              <View key={student.id} style={styles.studentCard}>
+                {/* Linha Superior: Avatar, Nome e Meta (área clicável independente) */}
+                <TouchableOpacity
+                  style={styles.studentTopRow}
+                  onPress={() => onSelectStudent(student)}
+                  activeOpacity={0.75}
+                >
                   <View style={[styles.studentAvatar, { backgroundColor: student.avatarColor }]}>
                     <Text style={styles.studentAvatarText}>{initials}</Text>
                   </View>
@@ -337,7 +342,7 @@ export const TrainerHomeScreen = ({
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.text.tertiary} />
-                </View>
+                </TouchableOpacity>
 
                 {/* Badge de Status do Último Treino */}
                 <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
@@ -393,7 +398,7 @@ export const TrainerHomeScreen = ({
                     <Text style={styles.prescribeText}>Prescrever Treino</Text>
                   </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
             );
           })
         )}
@@ -452,9 +457,14 @@ export const TrainerHomeScreen = ({
                   style={[
                     styles.modalCodeBadgeText,
                     copied && { color: colors.success },
+                    copyError && { color: colors.warning },
                   ]}
                 >
-                  {copied ? "Copiado para área de transferência!" : "Toque no código para copiar"}
+                  {copied
+                    ? "Copiado para área de transferência!"
+                    : copyError
+                      ? "Cópia automática indisponível — copie acima"
+                      : "Toque no código para copiar"}
                 </Text>
               </View>
             </TouchableOpacity>

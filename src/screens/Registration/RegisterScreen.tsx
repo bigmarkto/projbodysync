@@ -16,10 +16,15 @@ import { useRegisterApi } from '../../hooks/useRegister';
 
 const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
   const { data } = useRegister();
+  const { authenticateSession } = useAuth();
   const navigation = useNavigation<any>();
   const [stepIdx, setStepIdx] = useState(0);
   const [showPayment, setShowPayment] = useState(false);
-  const [registeredToken, setRegisteredToken] = useState('');
+  const [registeredSession, setRegisteredSession] = useState<{
+    user: any;
+    accessToken: string;
+    refreshToken: string;
+  } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isPersonal = data.role === 'personal';
@@ -32,14 +37,20 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
 
   const handleConfirm = async () => {
     setErrors({});
+    let authPayload: { user: any; accessToken: string; refreshToken: string } | null = null;
     try {
       const { res, json } = await register(data);
       if (!res.ok) {
         setErrors((e) => ({ ...e, submit: json.error || 'Falha no cadastro' }));
         return;
       }
-      if (json.accessToken) {
-        setRegisteredToken(json.accessToken);
+      if (json.user && json.accessToken && json.refreshToken) {
+        authPayload = {
+          user: json.user,
+          accessToken: json.accessToken,
+          refreshToken: json.refreshToken,
+        };
+        setRegisteredSession(authPayload);
       }
     } catch {
       setErrors((e) => ({ ...e, submit: 'Erro ao conectar ao servidor' }));
@@ -48,6 +59,8 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
 
     if (data.subscriptionType && data.subscriptionType !== 'free') {
       setShowPayment(true);
+    } else if (authPayload) {
+      await authenticateSession(authPayload.user, authPayload.accessToken, authPayload.refreshToken);
     } else {
       navigation.navigate('Login');
     }
@@ -56,10 +69,21 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
   if (showPayment) {
     return (
       <PaymentScreen
-        accessToken={registeredToken || accessToken || ''}
-        onPaid={() => {
+        accessToken={registeredSession?.accessToken || accessToken || ''}
+        onPaid={async () => {
           setShowPayment(false);
-          navigation.navigate('Login');
+          if (registeredSession) {
+            await authenticateSession(
+              {
+                ...registeredSession.user,
+                subscriptionType: (data.subscriptionType || registeredSession.user.subscriptionType) as any,
+              },
+              registeredSession.accessToken,
+              registeredSession.refreshToken
+            );
+          } else {
+            navigation.navigate('Login');
+          }
         }}
         onBack={() => setShowPayment(false)}
       />

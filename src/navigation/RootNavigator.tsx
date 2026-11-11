@@ -3,6 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "../context/AuthContext";
 import TabNavigator from "./TabNavigator";
+import { TrainerMainFlow } from "../screens/Trainer/TrainerMainFlow";
 import RegisterScreen from "../screens/Registration/RegisterScreen";
 import LoginScreen from "../screens/LoginScreen";
 import { RootStackParamList } from "./types";
@@ -17,20 +18,25 @@ const SplashLoading = () => (
 );
 
 const RootNavigator = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) return <SplashLoading />;
+
+  const isProfessor = user?.role === "professor";
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: "fade" }}>
       {isAuthenticated ? (
-                    <Stack.Screen name="Main" component={TabNavigator} />
-                  ) : (
-                    <>
-                      <Stack.Screen name="Login" component={LoginScreen} />
-                      <Stack.Screen name="Register" component={RegisterScreen} />
-                    </>
-                  )}
+        <Stack.Screen
+          name="Main"
+          component={isProfessor ? TrainerMainFlow : TabNavigator}
+        />
+      ) : (
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
+        </>
+      )}
     </Stack.Navigator>
   );
 };

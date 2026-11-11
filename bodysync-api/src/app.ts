@@ -10,17 +10,19 @@ import { workoutRoutes } from './modules/workout/workout.routes'
 import { sessionRoutes } from './modules/session/session.routes'
 import { measurementRoutes } from './modules/measurement/measurement.routes'
 import { paymentRoutes } from './modules/payment/payment.routes'
+import { trainerRoutes } from './modules/trainer/trainer.routes'
 
 const app = express()
 
 const localOriginRegex =
-  /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/
+  /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|26\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/
 
 app.use((req, res, next) => {
   const origin = req.headers.origin
 
   if (origin && localOriginRegex.test(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
     res.setHeader('Vary', 'Origin')
   }
 
@@ -29,6 +31,7 @@ app.use((req, res, next) => {
     'Access-Control-Allow-Headers',
     'Origin, X-Requested-With, Content-Type, Accept, Authorization'
   )
+  res.setHeader('Access-Control-Max-Age', '86400')
 
   if (req.method === 'OPTIONS') {
     res.sendStatus(204)
@@ -64,6 +67,9 @@ app.use('/api/measurements', measurementRoutes)
 
 // Rotas de Pagamento / Assinatura (mock)
 app.use('/api/payment', paymentRoutes)
+
+// Rotas do Personal Trainer (consultoria, alunos, prescrições e métricas)
+app.use('/api/trainer', trainerRoutes)
 
 // Middleware global de tratamento de erros
 app.use(errorMiddleware)

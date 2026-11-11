@@ -34,6 +34,7 @@ export interface PlanSummary {
   name: string;
   createdAt: string;
   exerciseCount: number;
+  createdByTrainerId?: string | null;
 }
 
 export interface PlanDetail {
@@ -41,6 +42,7 @@ export interface PlanDetail {
   userId: string;
   name: string;
   createdAt: string;
+  createdByTrainerId?: string | null;
   exercises: PlanExercise[];
 }
 

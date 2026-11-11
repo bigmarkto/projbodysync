@@ -4,7 +4,8 @@ import path from 'path'
 import { db } from '../config/database'
 
 async function run() {
-  const migrationPath = path.resolve(__dirname, '../../migrations/002_security_and_performance_tuning.sql')
+  const targetFile = process.argv[2] || '003_personal_trainer.sql'
+  const migrationPath = path.resolve(__dirname, '../../migrations', targetFile)
   console.log(`Lendo arquivo de migração: ${migrationPath}`)
   const sql = fs.readFileSync(migrationPath, 'utf8')
 
@@ -15,7 +16,7 @@ async function run() {
     await client.query('BEGIN')
     await client.query(sql)
     await client.query('COMMIT')
-    console.log('Migração 002 aplicada com sucesso no Supabase!')
+    console.log(`Migração ${targetFile} aplicada com sucesso no Supabase!`)
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('Erro ao aplicar migração:', err)

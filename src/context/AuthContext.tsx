@@ -49,6 +49,7 @@ interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>
+  authenticateSession: (user: User, accessToken: string, refreshToken: string) => Promise<void>
   logout: () => Promise<void>
   refreshSession: () => Promise<string | null>
 }
@@ -208,6 +209,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [refreshSession, scheduleRefresh])
 
+  const authenticateSession = useCallback(
+    async (user: User, accessToken: string, refreshToken: string): Promise<void> => {
+      await AsyncStorage.multiSet([
+        [STORAGE_KEYS.ACCESS_TOKEN, accessToken],
+        [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
+        [STORAGE_KEYS.USER, JSON.stringify(user)],
+      ])
+
+      setState({
+        user,
+        accessToken,
+        isAuthenticated: true,
+        isLoading: false,
+      })
+
+      const expiry = parseTokenExpiry(accessToken)
+      const refreshIn = expiry - Date.now() - 60_000
+      if (refreshIn > 0) scheduleRefresh(refreshIn, refreshSession)
+    },
+    [refreshSession, scheduleRefresh]
+  )
+
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
@@ -221,25 +244,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error(data.error || 'Credenciais inválidas')
     }
 
-    const { user, accessToken, refreshToken } = data
-
-    await AsyncStorage.multiSet([
-      [STORAGE_KEYS.ACCESS_TOKEN, accessToken],
-      [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
-      [STORAGE_KEYS.USER, JSON.stringify(user)],
-    ])
-
-    setState({
-      user,
-      accessToken,
-      isAuthenticated: true,
-      isLoading: false,
-    })
-
-    const expiry = parseTokenExpiry(accessToken)
-    const refreshIn = expiry - Date.now() - 60_000
-    if (refreshIn > 0) scheduleRefresh(refreshIn, refreshSession)
-  }, [refreshSession, scheduleRefresh])
+    await authenticateSession(data.user, data.accessToken, data.refreshToken)
+  }, [authenticateSession])
 
   const logout = useCallback(async (): Promise<void> => {
     try {
@@ -258,7 +264,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [clearSession])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, refreshSession }}>
+    <AuthContext.Provider value={{ ...state, login, authenticateSession, logout, refreshSession }}>
       {children}
     </AuthContext.Provider>
   )

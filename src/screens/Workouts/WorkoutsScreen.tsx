@@ -387,9 +387,17 @@ const WorkoutsScreen = () => {
                   <Ionicons name="barbell" size={20} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.planName} numberOfLines={1}>
-                    {plan.name}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <Text style={styles.planName} numberOfLines={1}>
+                      {plan.name}
+                    </Text>
+                    {!!plan.createdByTrainerId && (
+                      <View style={styles.trainerPrescribedBadge}>
+                        <Ionicons name="shield-checkmark" size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
+                        <Text style={styles.trainerPrescribedText}>Personal</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.planMeta}>
                     {plan.exerciseCount}{" "}
                     {plan.exerciseCount === 1 ? "exercício" : "exercícios"}
@@ -632,6 +640,20 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       fontFamily: "Poppins_600SemiBold",
       fontSize: 15,
       color: colors.text.primary,
+    },
+    trainerPrescribedBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.success,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    trainerPrescribedText: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 9,
+      color: "#FFFFFF",
+      letterSpacing: 0.5,
     },
     planMeta: {
       fontFamily: "Poppins_400Regular",

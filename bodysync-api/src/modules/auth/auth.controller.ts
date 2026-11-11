@@ -75,13 +75,6 @@ export const authController = {
       let finalBirthDate: string
       const dateValue = birthYear || birthDate
 
-      console.log('🔍 DEBUG - Data de nascimento:', {
-        birthYear,
-        birthDate,
-        dateValue,
-        type: typeof dateValue,
-      })
-
       if (!dateValue || dateValue === null || dateValue === undefined) {
         return res.status(400).json({
           error:

@@ -130,12 +130,13 @@ export const workoutService = {
          p.id,
          p.name,
          p.created_at AS "createdAt",
+         p.created_by_trainer_id AS "createdByTrainerId",
          COUNT(pe.id)::int AS "exerciseCount"
        FROM workout_plans p
        LEFT JOIN plan_exercises pe ON pe.plan_id = p.id
        WHERE p.user_id = $1
        GROUP BY p.id
-       ORDER BY p.created_at DESC`,
+       ORDER BY (p.created_by_trainer_id IS NOT NULL) DESC, p.created_at DESC`,
       [userId]
     )
     return result.rows as WorkoutPlanSummary[]
@@ -222,7 +223,7 @@ export const workoutService = {
 
   async getById(userId: string, planId: number): Promise<WorkoutPlan> {
     const planResult = await db.query(
-      `SELECT id, user_id AS "userId", name, created_at AS "createdAt"
+      `SELECT id, user_id AS "userId", name, created_at AS "createdAt", created_by_trainer_id AS "createdByTrainerId"
        FROM workout_plans
        WHERE id = $1 AND user_id = $2`,
       [planId, userId]

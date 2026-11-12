@@ -49,6 +49,36 @@ export interface PrescribedPlanEntry {
   }[]
 }
 
+export interface StudentEvaluationEntry {
+  id: string
+  trainerId: string
+  trainerName: string
+  studentId: string
+  evaluatedAt: string
+  rating: number
+  notes: string
+  weightKg: number | null
+  bodyFatPct: number | null
+  chestCm: number | null
+  waistCm: number | null
+  armCm: number | null
+  thighCm: number | null
+  createdAt: string
+}
+
+export interface CreateEvaluationInput {
+  studentId: string
+  evaluatedAt?: string
+  rating: number
+  notes: string
+  weightKg?: number | null
+  bodyFatPct?: number | null
+  chestCm?: number | null
+  waistCm?: number | null
+  armCm?: number | null
+  thighCm?: number | null
+}
+
 export interface TrainerStudentDetail extends TrainerStudentSummary {
   age: number
   startWeightKg: number
@@ -59,6 +89,7 @@ export interface TrainerStudentDetail extends TrainerStudentSummary {
   weightHistory: WeightLogEntry[]
   recentSessions: SessionHistoryEntry[]
   prescribedPlans: PrescribedPlanEntry[]
+  evaluations: StudentEvaluationEntry[]
 }
 
 export interface PrescribeExerciseInput {

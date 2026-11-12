@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
+  Modal,
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
@@ -13,8 +15,14 @@ import { useTheme } from "../../context/ThemeProvider";
 import { useAuth } from "../../context/AuthContext";
 import { useApi } from "../../hooks/useApi";
 import { ConfirmModal } from "../../components/ConfirmModal";
+import { HorizontalScrollStrip } from "../../components/HorizontalScrollStrip";
+import { EvaluationCard } from "../../components/EvaluationCard";
+import {
+  DatePickerField,
+  toLocalDateKey,
+} from "../../components/DateTimePickerField";
 import { createTrainerApi } from "./trainerService";
-import { Student, getInitials } from "./trainerTypes";
+import { Student, StudentEvaluation, getInitials } from "./trainerTypes";
 
 interface Props {
   studentId: string;
@@ -26,7 +34,43 @@ interface Props {
   onDisconnected?: () => void;
 }
 
-type TabType = "plans" | "sessions" | "weight";
+type TabType = "plans" | "evaluations" | "sessions" | "weight";
+type EvalMetricKey =
+  | "weightKg"
+  | "bodyFatPct"
+  | "chestCm"
+  | "waistCm"
+  | "armCm"
+  | "thighCm";
+
+const EVAL_METRIC_INPUTS: {
+  key: EvalMetricKey;
+  label: string;
+  placeholder: string;
+}[] = [
+  { key: "weightKg", label: "Peso (kg)", placeholder: "Ex: 76.5" },
+  { key: "bodyFatPct", label: "% Gordura", placeholder: "Ex: 14.5" },
+  { key: "chestCm", label: "Tórax (cm)", placeholder: "Ex: 102" },
+  { key: "waistCm", label: "Cintura (cm)", placeholder: "Ex: 80" },
+  { key: "armCm", label: "Braço (cm)", placeholder: "Ex: 37" },
+  { key: "thighCm", label: "Coxa (cm)", placeholder: "Ex: 58" },
+];
+
+const EMPTY_EVAL_METRICS: Record<EvalMetricKey, string> = {
+  weightKg: "",
+  bodyFatPct: "",
+  chestCm: "",
+  waistCm: "",
+  armCm: "",
+  thighCm: "",
+};
+
+const parseOptionalNum = (raw: string): number | null => {
+  const clean = raw.trim().replace(",", ".");
+  if (!clean) return null;
+  const n = Number(clean);
+  return Number.isFinite(n) ? n : NaN;
+};
 
 export const StudentDetailScreen = ({
   studentId,
@@ -53,6 +97,16 @@ export const StudentDetailScreen = ({
   const [disconnecting, setDisconnecting] = useState(false);
   const [pendingDeletePlan, setPendingDeletePlan] = useState<{ id: number; name: string } | null>(null);
   const [deletingPlan, setDeletingPlan] = useState(false);
+
+  const [showEvalModal, setShowEvalModal] = useState(false);
+  const [evalDate, setEvalDate] = useState(() => toLocalDateKey(new Date()));
+  const [evalRating, setEvalRating] = useState(5);
+  const [evalNotes, setEvalNotes] = useState("");
+  const [evalMetrics, setEvalMetrics] = useState<Record<EvalMetricKey, string>>(EMPTY_EVAL_METRICS);
+  const [evalError, setEvalError] = useState<string | null>(null);
+  const [savingEval, setSavingEval] = useState(false);
+  const [pendingDeleteEval, setPendingDeleteEval] = useState<StudentEvaluation | null>(null);
+  const [deletingEval, setDeletingEval] = useState(false);
 
   const loadDetail = useCallback(async () => {
     setError(null);
@@ -100,6 +154,80 @@ export const StudentDetailScreen = ({
       setError(e instanceof Error ? e.message : "Erro ao excluir ficha prescrita.");
     } finally {
       setDeletingPlan(false);
+    }
+  };
+
+  const openNewEvaluation = () => {
+    setEvalDate(toLocalDateKey(new Date()));
+    setEvalRating(5);
+    setEvalNotes("");
+    setEvalMetrics(EMPTY_EVAL_METRICS);
+    setEvalError(null);
+    setShowEvalModal(true);
+  };
+
+  const handleSaveEvaluation = async () => {
+    if (!student) return;
+    setEvalError(null);
+    if (!evalDate || !/^\d{4}-\d{2}-\d{2}$/.test(evalDate)) {
+      setEvalError("Selecione uma data válida para a avaliação.");
+      return;
+    }
+    if (!evalNotes.trim()) {
+      setEvalError("Escreva o parecer ou observação sobre o aluno.");
+      return;
+    }
+
+    const parsed: Record<EvalMetricKey, number | null> = {
+      weightKg: null,
+      bodyFatPct: null,
+      chestCm: null,
+      waistCm: null,
+      armCm: null,
+      thighCm: null,
+    };
+    for (const m of EVAL_METRIC_INPUTS) {
+      const val = parseOptionalNum(evalMetrics[m.key]);
+      if (Number.isNaN(val)) {
+        setEvalError(`Valor inválido em ${m.label}.`);
+        return;
+      }
+      parsed[m.key] = val;
+    }
+
+    setSavingEval(true);
+    try {
+      await trainerApi.createEvaluation(student.id, {
+        evaluatedAt: evalDate,
+        rating: evalRating,
+        notes: evalNotes.trim(),
+        ...parsed,
+      });
+      setShowEvalModal(false);
+      setLocalNotice("Avaliação registrada e compartilhada com o aluno!");
+      setActiveTab("evaluations");
+      await loadDetail();
+    } catch (e) {
+      setEvalError(e instanceof Error ? e.message : "Não foi possível salvar a avaliação.");
+    } finally {
+      setSavingEval(false);
+    }
+  };
+
+  const handleConfirmDeleteEval = async () => {
+    if (!pendingDeleteEval) return;
+    setDeletingEval(true);
+    setError(null);
+    try {
+      await trainerApi.deleteEvaluation(pendingDeleteEval.id);
+      setPendingDeleteEval(null);
+      setLocalNotice("Avaliação excluída.");
+      await loadDetail();
+    } catch (e) {
+      setPendingDeleteEval(null);
+      setError(e instanceof Error ? e.message : "Erro ao excluir avaliação.");
+    } finally {
+      setDeletingEval(false);
     }
   };
 
@@ -246,56 +374,35 @@ export const StudentDetailScreen = ({
           </View>
         </View>
 
-        {/* Segmented Control de Abas */}
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tabItem, activeTab === "plans" && styles.tabItemActive]}
-            onPress={() => setActiveTab("plans")}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="barbell-outline"
-              size={15}
-              color={activeTab === "plans" ? colors.primary : colors.text.tertiary}
-              style={{ marginRight: 6 }}
-            />
-            <Text style={[styles.tabText, activeTab === "plans" && styles.tabTextActive]}>
-              Treinos ({student.plans.length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabItem, activeTab === "sessions" && styles.tabItemActive]}
-            onPress={() => setActiveTab("sessions")}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="time-outline"
-              size={15}
-              color={activeTab === "sessions" ? colors.primary : colors.text.tertiary}
-              style={{ marginRight: 6 }}
-            />
-            <Text style={[styles.tabText, activeTab === "sessions" && styles.tabTextActive]}>
-              Histórico
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabItem, activeTab === "weight" && styles.tabItemActive]}
-            onPress={() => setActiveTab("weight")}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="stats-chart-outline"
-              size={15}
-              color={activeTab === "weight" ? colors.primary : colors.text.tertiary}
-              style={{ marginRight: 6 }}
-            />
-            <Text style={[styles.tabText, activeTab === "weight" && styles.tabTextActive]}>
-              Pesagens
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Faixa de Abas Rolável (deixa subentendido haver mais abas) */}
+        <HorizontalScrollStrip containerStyle={styles.tabBarStrip} contentContainerStyle={styles.tabBarContent}>
+          {[
+            { id: "plans" as TabType, label: `Treinos (${student.plans.length})`, icon: "barbell-outline" as const },
+            { id: "evaluations" as TabType, label: `Avaliações (${student.evaluations.length})`, icon: "clipboard-outline" as const },
+            { id: "sessions" as TabType, label: "Histórico", icon: "time-outline" as const },
+            { id: "weight" as TabType, label: "Pesagens", icon: "stats-chart-outline" as const },
+          ].map((tab) => {
+            const focused = activeTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                style={[styles.tabItem, focused && styles.tabItemActive]}
+                onPress={() => setActiveTab(tab.id)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={tab.icon}
+                  size={15}
+                  color={focused ? colors.primary : colors.text.tertiary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.tabText, focused && styles.tabTextActive]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </HorizontalScrollStrip>
 
         {/* Conteúdo da Aba Selecionada */}
         {activeTab === "plans" && (
@@ -454,7 +561,167 @@ export const StudentDetailScreen = ({
             )}
           </View>
         )}
+
+        {activeTab === "evaluations" && (
+          <View style={styles.tabContent}>
+            <TouchableOpacity
+              style={styles.addPlanDashedBtn}
+              onPress={openNewEvaluation}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={styles.addPlanDashedText}>
+                Registrar Avaliação para {student.name.split(" ")[0]}
+              </Text>
+            </TouchableOpacity>
+
+            {student.evaluations.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyText}>
+                  Nenhuma avaliação registrada ainda. Registre medidas, nota e feedback técnico para o aluno acompanhar.
+                </Text>
+              </View>
+            ) : (
+              student.evaluations.map((ev) => (
+                <EvaluationCard
+                  key={ev.id}
+                  evaluation={ev}
+                  onDelete={
+                    ev.trainerId === user?.id
+                      ? (target) => setPendingDeleteEval(target)
+                      : undefined
+                  }
+                />
+              ))
+            )}
+          </View>
+        )}
       </ScrollView>
+
+      {/* Modal de Nova Avaliação Física */}
+      <Modal
+        visible={showEvalModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEvalModal(false)}
+      >
+        <View style={styles.evalModalOverlay}>
+          <View style={styles.evalModalCard}>
+            <View style={styles.evalModalHeader}>
+              <Text style={styles.evalModalTitle}>Nova Avaliação</Text>
+              <TouchableOpacity
+                onPress={() => setShowEvalModal(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={22} color={colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={{ maxHeight: 460 }}
+            >
+              {!!evalError && (
+                <View style={styles.errorBanner}>
+                  <Ionicons name="alert-circle" size={18} color={colors.error} style={{ marginRight: 8 }} />
+                  <Text style={styles.errorBannerText}>{evalError}</Text>
+                </View>
+              )}
+
+              <DatePickerField
+                label="Data da avaliação"
+                value={evalDate}
+                maximumDate={new Date()}
+                onChange={(iso) => {
+                  setEvalDate(iso);
+                  setEvalError(null);
+                }}
+              />
+
+              <Text style={styles.evalFieldLabel}>Nota geral de evolução</Text>
+              <View style={styles.ratingRow}>
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const active = evalRating === star;
+                  return (
+                    <TouchableOpacity
+                      key={star}
+                      style={[styles.ratingPill, active && styles.ratingPillActive]}
+                      onPress={() => setEvalRating(star)}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons
+                        name={star <= evalRating ? "star" : "star-outline"}
+                        size={15}
+                        color={active ? "#FFFFFF" : colors.primary}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={[styles.ratingPillText, active && { color: "#FFFFFF" }]}>
+                        {star}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.evalFieldLabel}>Medidas corporais (opcional)</Text>
+              <View style={styles.metricsGrid}>
+                {EVAL_METRIC_INPUTS.map((field) => (
+                  <View key={field.key} style={styles.metricInputBox}>
+                    <Text style={styles.metricInputLabel}>{field.label}</Text>
+                    <TextInput
+                      style={styles.metricInput}
+                      placeholder={field.placeholder}
+                      placeholderTextColor={colors.text.tertiary}
+                      keyboardType="decimal-pad"
+                      value={evalMetrics[field.key]}
+                      onChangeText={(txt) =>
+                        setEvalMetrics((prev) => ({ ...prev, [field.key]: txt }))
+                      }
+                    />
+                  </View>
+                ))}
+              </View>
+
+              <Text style={styles.evalFieldLabel}>Parecer / observações técnicas</Text>
+              <TextInput
+                style={styles.notesInput}
+                placeholder="Ex: Boa execução no agachamento, reduzir descanso para 45s nas séries finais..."
+                placeholderTextColor={colors.text.tertiary}
+                multiline
+                numberOfLines={4}
+                maxLength={1500}
+                value={evalNotes}
+                onChangeText={(t) => {
+                  setEvalNotes(t);
+                  setEvalError(null);
+                }}
+              />
+            </ScrollView>
+
+            <View style={styles.evalActionsRow}>
+              <TouchableOpacity
+                style={styles.evalCancelBtn}
+                onPress={() => setShowEvalModal(false)}
+                disabled={savingEval}
+              >
+                <Text style={styles.evalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.evalSaveBtn, savingEval && { opacity: 0.7 }]}
+                onPress={handleSaveEvaluation}
+                disabled={savingEval}
+              >
+                {savingEval ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.evalSaveText}>Salvar Avaliação</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Botão Fixo de Ação no Rodapé */}
       <View style={[styles.footerBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
@@ -490,6 +757,18 @@ export const StudentDetailScreen = ({
         loading={deletingPlan}
         onCancel={() => setPendingDeletePlan(null)}
         onConfirm={handleConfirmDeletePlan}
+      />
+
+      <ConfirmModal
+        visible={!!pendingDeleteEval}
+        title="Excluir avaliação?"
+        message="Esta avaliação deixará de aparecer para você e para o aluno."
+        cancelLabel="Cancelar"
+        confirmLabel="Excluir"
+        destructive
+        loading={deletingEval}
+        onCancel={() => setPendingDeleteEval(null)}
+        onConfirm={handleConfirmDeleteEval}
       />
     </View>
   );
@@ -618,8 +897,7 @@ const createStyles = (colors: any, isDark: boolean) =>
       fontSize: 12,
       color: colors.text.secondary,
     },
-    tabBar: {
-      flexDirection: "row",
+    tabBarStrip: {
       backgroundColor: colors.surface,
       borderRadius: 14,
       borderWidth: 1,
@@ -627,12 +905,16 @@ const createStyles = (colors: any, isDark: boolean) =>
       padding: 4,
       marginBottom: 16,
     },
+    tabBarContent: {
+      gap: 4,
+    },
     tabItem: {
-      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
       height: 38,
+      minWidth: 112,
+      paddingHorizontal: 14,
       borderRadius: 10,
     },
     tabItemActive: {
@@ -987,5 +1269,136 @@ const createStyles = (colors: any, isDark: boolean) =>
       fontSize: 13,
       color: colors.text.secondary,
       textAlign: "center",
+    },
+    evalModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 16,
+    },
+    evalModalCard: {
+      width: "100%",
+      maxWidth: 460,
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 18,
+    },
+    evalModalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 14,
+    },
+    evalModalTitle: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 18,
+      color: colors.text.primary,
+    },
+    evalFieldLabel: {
+      fontFamily: "Poppins_500Medium",
+      fontSize: 13,
+      color: colors.text.secondary,
+      marginBottom: 8,
+      marginTop: 4,
+    },
+    ratingRow: {
+      flexDirection: "row",
+      gap: 8,
+      marginBottom: 14,
+    },
+    ratingPill: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      height: 38,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceVariant,
+    },
+    ratingPillActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    ratingPillText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 13,
+      color: colors.text.primary,
+    },
+    metricsGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      gap: 10,
+      marginBottom: 12,
+    },
+    metricInputBox: {
+      width: "48%",
+    },
+    metricInputLabel: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 11,
+      color: colors.text.tertiary,
+      marginBottom: 4,
+    },
+    metricInput: {
+      height: 42,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceVariant,
+      paddingHorizontal: 12,
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.text.primary,
+    },
+    notesInput: {
+      minHeight: 88,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceVariant,
+      padding: 12,
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.text.primary,
+      textAlignVertical: "top",
+      marginBottom: 12,
+    },
+    evalActionsRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 12,
+    },
+    evalCancelBtn: {
+      flex: 1,
+      height: 46,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    evalCancelText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 14,
+      color: colors.text.secondary,
+    },
+    evalSaveBtn: {
+      flex: 1.4,
+      height: 46,
+      borderRadius: 12,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    evalSaveText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 14,
+      color: "#FFFFFF",
     },
   });

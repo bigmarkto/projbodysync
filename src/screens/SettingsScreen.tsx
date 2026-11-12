@@ -15,7 +15,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeProvider";
 import { useAuth } from "../context/AuthContext";
 import { useApi } from "../hooks/useApi";
-import { createTrainerApi } from "./Trainer/trainerService";
+import {
+  copyToClipboard,
+  createTrainerApi,
+  openWhatsAppInvite,
+  shareTrainerInvite,
+} from "./Trainer/trainerService";
 import { MyTrainerData, TrainerLookupData, getInitials } from "./Trainer/trainerTypes";
 import { ConfirmModal } from "../components/ConfirmModal";
 
@@ -34,6 +39,10 @@ const SettingsScreen = () => {
   const [loadingTrainer, setLoadingTrainer] = useState(isStudent);
   const [trainerError, setTrainerError] = useState<string | null>(null);
   const [trainerSuccess, setTrainerSuccess] = useState<string | null>(null);
+
+  const [professorCode, setProfessorCode] = useState<string>("");
+  const [loadingProfessorCode, setLoadingProfessorCode] = useState(isProfessor);
+  const [professorNotice, setProfessorNotice] = useState<string | null>(null);
 
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [pendingLookup, setPendingLookup] = useState<TrainerLookupData | null>(null);
@@ -56,9 +65,44 @@ const SettingsScreen = () => {
     }
   }, [isStudent, trainerApi]);
 
+  const loadProfessorProfile = useCallback(async () => {
+    if (!isProfessor) return;
+    setLoadingProfessorCode(true);
+    try {
+      const pro = await trainerApi.getProfile();
+      setProfessorCode(pro.inviteCode);
+    } catch {
+      // mantém botão oculto se falhar carregamento inicial
+    } finally {
+      setLoadingProfessorCode(false);
+    }
+  }, [isProfessor, trainerApi]);
+
   useEffect(() => {
     loadMyTrainer();
-  }, [loadMyTrainer]);
+    loadProfessorProfile();
+  }, [loadMyTrainer, loadProfessorProfile]);
+
+  const handleCopyProfessorCode = async () => {
+    if (!professorCode) return;
+    const ok = await copyToClipboard(professorCode);
+    setProfessorNotice(
+      ok ? "Código copiado para a área de transferência!" : "Copie o código acima manualmente."
+    );
+    setTimeout(() => setProfessorNotice(null), 2600);
+  };
+
+  const handleShareProfessorCode = async () => {
+    if (!professorCode) return;
+    const outcome = await shareTrainerInvite(professorCode);
+    if (outcome === "copied") {
+      setProfessorNotice("Convite completo copiado para enviar!");
+      setTimeout(() => setProfessorNotice(null), 3000);
+    } else if (outcome === "failed") {
+      setProfessorNotice("Não foi possível compartilhar automaticamente. Toque no código.");
+      setTimeout(() => setProfessorNotice(null), 3200);
+    }
+  };
 
   const handleLookupTrainer = async () => {
     setTrainerError(null);
@@ -283,6 +327,78 @@ const SettingsScreen = () => {
                 </View>
               </>
             )}
+          </View>
+        )}
+
+        {/* Código de Convite do Personal Trainer (exclusivo para professores) */}
+        {isProfessor && (
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+              <Ionicons name="share-social-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.cardTitle, { color: colors.text.primary }]}>
+                Convidar Alunos
+              </Text>
+            </View>
+            <Text style={[styles.cardBody, { color: colors.text.secondary, marginBottom: 12 }]}>
+              Compartilhe seu código de consultoria para novos alunos conectarem com você:
+            </Text>
+
+            {loadingProfessorCode ? (
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 10 }} />
+            ) : !!professorCode ? (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.professorCodePill,
+                    {
+                      backgroundColor: colors.surfaceVariant,
+                      borderColor: colors.primary + "50",
+                    },
+                  ]}
+                  onPress={handleCopyProfessorCode}
+                  activeOpacity={0.75}
+                  accessibilityLabel="Toque para copiar seu código de convite"
+                >
+                  <Text style={[styles.professorCodeText, { color: colors.primary }]}>
+                    {professorCode}
+                  </Text>
+                  <Ionicons name="copy-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+
+                {!!professorNotice && (
+                  <View style={[styles.feedbackBox, { backgroundColor: colors.successLight }]}>
+                    <Text style={[styles.feedbackText, { color: colors.success }]}>
+                      {professorNotice}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.professorShareRow}>
+                  <TouchableOpacity
+                    style={[styles.professorWaBtn, { borderColor: colors.border, backgroundColor: colors.surfaceVariant }]}
+                    onPress={() => openWhatsAppInvite(professorCode)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="logo-whatsapp" size={16} color="#16A34A" style={{ marginRight: 6 }} />
+                    <Text style={[styles.professorWaText, { color: "#16A34A" }]}>WhatsApp</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.professorShareBtn, { backgroundColor: colors.primary }]}
+                    onPress={handleShareProfessorCode}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="share-social-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.connectBtnText}>Compartilhar</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : null}
           </View>
         )}
 
@@ -567,6 +683,48 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
     fontSize: 14,
     color: "#FFFFFF",
+  },
+  professorCodePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  professorCodeText: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 20,
+    letterSpacing: 1.5,
+  },
+  professorShareRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 2,
+  },
+  professorWaBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  professorWaText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 13,
+  },
+  professorShareBtn: {
+    flex: 1.2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 44,
+    borderRadius: 12,
   },
   logoutBtn: {
     flexDirection: "row",

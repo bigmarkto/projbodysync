@@ -1,19 +1,17 @@
 import React, { useState } from "react";
 import {
-  Modal,
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Platform,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useRegister, Gender, UserRole } from "./RegisterContext";
 import { StepHeader, FieldInput, ContinueButton, SelectCard } from "./components";
+import { DatePickerField, parseDateOnlyLocal, toLocalDateKey } from "../../components/DateTimePickerField";
 import { lightColors } from "../../theme/colors";
 
 const GENDERS: { label: string; value: Gender }[] = [
@@ -24,12 +22,8 @@ const GENDERS: { label: string; value: Gender }[] = [
 ];
 
 function normalizeBirthDate(raw: string): string | null {
-  const v = raw.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-  const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
-  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
-  if (/^\d{4}$/.test(v)) return `${v}-01-01`;
-  return null;
+  const parsed = parseDateOnlyLocal(raw);
+  return parsed ? toLocalDateKey(parsed) : null;
 }
 
 interface Props {
@@ -42,7 +36,6 @@ export const Step1PersonalData = ({ onNext, onBack, totalSteps }: Props) => {
   const { data, setField } = useRegister();
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [showBirthPicker, setShowBirthPicker] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -147,56 +140,19 @@ export const Step1PersonalData = ({ onNext, onBack, totalSteps }: Props) => {
         />
 
         {/* Data de nascimento */}
-        {Platform.OS === "web" ? (
-          <FieldInput
-            label="Data de nascimento"
-            placeholder="Ex: 15/05/1998 ou 1998-05-15"
-            leftIcon="calendar-outline"
-            value={data.birthYear}
-            onChangeText={(v) => {
-              setField("birthYear", v);
-              setErrors((e) => ({ ...e, birthYear: "" }));
-            }}
-            error={errors.birthYear}
-            maxLength={10}
-          />
-        ) : (
-          <>
-            <TouchableOpacity style={s.timePickerBtn} onPress={() => setShowBirthPicker(true)}>
-              <Ionicons name="calendar-outline" size={18} color={lightColors.text.tertiary} style={{ marginRight: 10 }} />
-              <Text style={s.timePickerText}>{data.birthYear ? new Date(data.birthYear).getFullYear().toString() : "Selecione o ano de nascimento"}</Text>
-            </TouchableOpacity>
-            {!!errors.birthYear && <Text style={s.errorText}>{errors.birthYear}</Text>}
-            {showBirthPicker && (
-              <Modal
-                visible={showBirthPicker}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setShowBirthPicker(false)}
-              >
-                <View style={s.modalBackdrop}>
-                  <View style={s.modalContainer}>
-                    <DateTimePicker
-                      mode="date"
-                      value={data.birthYear ? new Date(data.birthYear) : new Date()}
-                      display="spinner"
-                      maximumDate={new Date()}
-                      onValueChange={(_, selectedDate) => {
-                        setShowBirthPicker(false);
-                        if (selectedDate) {
-                          const iso = selectedDate.toISOString().split("T")[0];
-                          setField("birthYear", iso);
-                          setErrors((e) => ({ ...e, birthYear: "" }));
-                        }
-                      }}
-                      onDismiss={() => setShowBirthPicker(false)}
-                    />
-                  </View>
-                </View>
-              </Modal>
-            )}
-          </>
-        )}
+        <DatePickerField
+          label="Data de nascimento"
+          placeholder="Selecione sua data de nascimento"
+          value={data.birthYear}
+          minimumDate={new Date(1920, 0, 1)}
+          maximumDate={new Date()}
+          forceLight
+          onChange={(iso) => {
+            setField("birthYear", iso);
+            setErrors((e) => ({ ...e, birthYear: "" }));
+          }}
+          error={errors.birthYear}
+        />
 
         {/* Sexo */}
         <Text style={s.fieldLabel}>Sexo</Text>
@@ -294,50 +250,6 @@ const s = StyleSheet.create({
   },
   genderChipTextSelected: { color: lightColors.primary },
   roleRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
-  birthPickerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: lightColors.border,
-    backgroundColor: lightColors.surface,
-    marginBottom: 16,
-  },
-  birthPickerText: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: lightColors.text.secondary,
-  },
-  timePickerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: lightColors.border,
-    backgroundColor: lightColors.surface,
-    marginBottom: 16,
-  },
-  timePickerText: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: lightColors.text.secondary,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    backgroundColor: lightColors.surface,
-    borderRadius: 12,
-    padding: 16,
-    minWidth: '80%',
-  },
   errorText: {
     fontFamily: "Poppins_400Regular",
     fontSize: 12,

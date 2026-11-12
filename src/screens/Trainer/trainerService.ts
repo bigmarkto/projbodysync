@@ -1,6 +1,9 @@
 // src/screens/Trainer/trainerService.ts
+import { Linking, Platform, Share } from "react-native";
+import { formatDateBR } from "../../components/DateTimePickerField";
 import {
   Student,
+  StudentEvaluation,
   TrainerAnalyticsData,
   TrainerProfileData,
   TrainerLookupData,
@@ -18,13 +21,85 @@ export interface PrescribePayload {
   }[];
 }
 
+export interface CreateEvaluationPayload {
+  evaluatedAt?: string;
+  rating: number;
+  notes: string;
+  weightKg?: number | null;
+  bodyFatPct?: number | null;
+  chestCm?: number | null;
+  waistCm?: number | null;
+  armCm?: number | null;
+  thighCm?: number | null;
+}
+
 export type {
   Student,
+  StudentEvaluation,
   TrainerAnalyticsData,
   TrainerProfileData,
   TrainerLookupData,
   MyTrainerData,
 };
+
+export async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    if (typeof document !== "undefined") {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return ok;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export function buildInviteShareMessage(inviteCode: string): string {
+  return `Olá! Conecte-se comigo no BodySync usando meu código de Personal Trainer: ${inviteCode}. Acesse Ajustes > Meu Personal Trainer para vincular!`;
+}
+
+export async function shareTrainerInvite(
+  inviteCode: string
+): Promise<"shared" | "copied" | "cancelled" | "failed"> {
+  if (!inviteCode || inviteCode === "---") return "failed";
+  const message = buildInviteShareMessage(inviteCode);
+
+  try {
+    const canNativeShare =
+      Platform.OS !== "web" ||
+      (typeof navigator !== "undefined" && typeof navigator.share === "function");
+
+    if (canNativeShare) {
+      const res = await Share.share({ title: "Convite BodySync", message });
+      if (Platform.OS !== "web" && res.action === Share.dismissedAction) {
+        return "cancelled";
+      }
+      return "shared";
+    }
+  } catch (err: any) {
+    if (err?.name === "AbortError") return "cancelled";
+  }
+
+  const copied = await copyToClipboard(message);
+  return copied ? "copied" : "failed";
+}
+
+export function openWhatsAppInvite(inviteCode: string) {
+  if (!inviteCode || inviteCode === "---") return;
+  const message = buildInviteShareMessage(inviteCode);
+  Linking.openURL(`https://wa.me/?text=${encodeURIComponent(message)}`).catch(() => {});
+}
 
 const GOAL_LABELS: Record<string, string> = {
   emagrecimento: "Emagrecimento",
@@ -46,6 +121,26 @@ function formatDateLabel(iso: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function mapApiEvaluation(e: any): StudentEvaluation {
+  const numOrNull = (v: unknown) => (v != null ? Number(v) : null);
+  return {
+    id: String(e.id),
+    trainerId: String(e.trainerId),
+    trainerName: e.trainerName || "Personal Trainer",
+    studentId: String(e.studentId),
+    evaluatedAt: String(e.evaluatedAt),
+    rating: Number(e.rating) || 5,
+    notes: String(e.notes || ""),
+    weightKg: numOrNull(e.weightKg),
+    bodyFatPct: numOrNull(e.bodyFatPct),
+    chestCm: numOrNull(e.chestCm),
+    waistCm: numOrNull(e.waistCm),
+    armCm: numOrNull(e.armCm),
+    thighCm: numOrNull(e.thighCm),
+    createdAt: String(e.createdAt || ""),
+  };
 }
 
 function mapApiStudentToAppStudent(apiStudent: any): Student {
@@ -87,7 +182,7 @@ function mapApiStudentToAppStudent(apiStudent: any): Student {
       exerciseCount: p.exerciseCount ?? p.exercises?.length ?? 0,
       estimatedMinutes: Math.max(20, (p.exerciseCount ?? p.exercises?.length ?? 0) * 8),
       assignedAt: p.createdAt
-        ? new Date(p.createdAt).toLocaleDateString("pt-BR")
+        ? formatDateBR(p.createdAt) || new Date(p.createdAt).toLocaleDateString("pt-BR")
         : "Hoje",
       exercises: (p.exercises || []).map((e: any) => ({
         name: e.name,
@@ -104,12 +199,10 @@ function mapApiStudentToAppStudent(apiStudent: any): Student {
       durationMinutes: Number(s.durationMinutes) || 0,
     })),
     weightHistory: (apiStudent.weightHistory || []).map((w: any) => ({
-      date: new Date(w.measuredAt).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-      }),
+      date: formatDateBR(w.measuredAt, true) || "Recente",
       weightKg: Number(w.weightKg),
     })),
+    evaluations: (apiStudent.evaluations || []).map(mapApiEvaluation),
   };
 }
 
@@ -210,6 +303,40 @@ export const createTrainerApi = (
       res,
       "Não foi possível excluir a ficha prescrita."
     );
+  },
+
+  async createEvaluation(
+    studentId: string,
+    payload: CreateEvaluationPayload
+  ): Promise<StudentEvaluation> {
+    const res = await request(`/trainer/students/${studentId}/evaluations`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const data = await parseJsonOrThrow<{ evaluation: any }>(
+      res,
+      "Não foi possível registrar a avaliação."
+    );
+    return mapApiEvaluation(data.evaluation);
+  },
+
+  async deleteEvaluation(evaluationId: string) {
+    const res = await request(`/trainer/evaluations/${evaluationId}`, {
+      method: "DELETE",
+    });
+    return parseJsonOrThrow<{ success: boolean; message: string }>(
+      res,
+      "Não foi possível excluir a avaliação."
+    );
+  },
+
+  async getMyEvaluations(): Promise<StudentEvaluation[]> {
+    const res = await request("/trainer/my-evaluations");
+    const data = await parseJsonOrThrow<{ evaluations?: any[] }>(
+      res,
+      "Não foi possível carregar suas avaliações."
+    );
+    return (data.evaluations || []).map(mapApiEvaluation);
   },
 
   async getExerciseCategories(): Promise<string[]> {

@@ -17,6 +17,7 @@ import { createTrainerApi } from "./trainerService";
 import { TrainerAnalyticsData, getInitials } from "./trainerTypes";
 
 interface Props {
+  refreshTick?: number;
   onGoToStudents?: () => void;
   onSelectStudentId?: (studentId: string) => void;
 }
@@ -33,7 +34,11 @@ const EMPTY_ANALYTICS: TrainerAnalyticsData = {
   ranking: [],
 };
 
-export const TrainerAnalyticsScreen = ({ onGoToStudents, onSelectStudentId }: Props) => {
+export const TrainerAnalyticsScreen = ({
+  refreshTick = 0,
+  onGoToStudents,
+  onSelectStudentId,
+}: Props) => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { request } = useApi();
@@ -60,6 +65,10 @@ export const TrainerAnalyticsScreen = ({ onGoToStudents, onSelectStudentId }: Pr
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (refreshTick > 0) loadData();
+  }, [refreshTick, loadData]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -143,7 +152,30 @@ export const TrainerAnalyticsScreen = ({ onGoToStudents, onSelectStudentId }: Pr
             </Text>
           </View>
 
-          {/* Grid de KPIs Reais */}
+          {/* Resumo da Consultoria (Métricas movidas da aba Alunos) */}
+          <View style={styles.summaryRow}>
+            <View style={styles.kpiCard}>
+              <Ionicons name="people-outline" size={20} color={colors.primary} style={{ marginBottom: 6 }} />
+              <Text style={styles.kpiVal}>{analytics.activeStudentsCount}</Text>
+              <Text style={styles.kpiLabel}>Alunos Ativos</Text>
+            </View>
+
+            <View style={styles.kpiCard}>
+              <Ionicons name="flash-outline" size={20} color={colors.success} style={{ marginBottom: 6 }} />
+              <Text style={[styles.kpiVal, { color: colors.success }]}>
+                {analytics.trainedTodayCount}
+              </Text>
+              <Text style={styles.kpiLabel}>Treinaram Hoje</Text>
+            </View>
+
+            <View style={styles.kpiCard}>
+              <Ionicons name="clipboard-outline" size={20} color={colors.info} style={{ marginBottom: 6 }} />
+              <Text style={styles.kpiVal}>{analytics.totalPrescriptions}</Text>
+              <Text style={styles.kpiLabel}>Prescrições</Text>
+            </View>
+          </View>
+
+          {/* Grid de KPIs Semanais */}
           <View style={styles.kpiGrid}>
             <View style={styles.kpiCard}>
               <Ionicons name="barbell-outline" size={20} color={colors.primary} style={{ marginBottom: 6 }} />
@@ -396,6 +428,11 @@ const createStyles = (colors: any, isDark: boolean) =>
       fontSize: 12,
       color: "rgba(255,255,255,0.9)",
       lineHeight: 18,
+    },
+    summaryRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 10,
     },
     kpiGrid: {
       flexDirection: "row",

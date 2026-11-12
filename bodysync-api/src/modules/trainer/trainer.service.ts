@@ -2,7 +2,7 @@
 import crypto from 'crypto'
 import { db } from '../../config/database'
 import { AppError } from '../../middleware/error.middleware'
-import { dateKey } from '../session/session.service'
+import { dateKey, isValidIsoDate } from '../session/session.service'
 import {
   TrainerStudentSummary,
   TrainerStudentDetail,
@@ -11,6 +11,8 @@ import {
   TrainerProfileResponse,
   TrainerLookupResponse,
   MyTrainerResponse,
+  StudentEvaluationEntry,
+  CreateEvaluationInput,
 } from './trainer.types'
 
 export class TrainerError extends AppError {
@@ -61,6 +63,71 @@ function computeLastWorkoutStatus(
   if (diffDays >= 4) return 'warning'
   return 'recent'
 }
+
+const EVALUATION_METRIC_LIMITS: Record<
+  'weightKg' | 'bodyFatPct' | 'chestCm' | 'waistCm' | 'armCm' | 'thighCm',
+  { label: string; min: number; max: number }
+> = {
+  weightKg: { label: 'Peso', min: 1, max: 500 },
+  bodyFatPct: { label: 'Gordura corporal (%)', min: 1, max: 70 },
+  chestCm: { label: 'Tórax (cm)', min: 1, max: 300 },
+  waistCm: { label: 'Cintura (cm)', min: 1, max: 300 },
+  armCm: { label: 'Braço (cm)', min: 1, max: 150 },
+  thighCm: { label: 'Coxa (cm)', min: 1, max: 200 },
+}
+
+function parseOptionalMetric(
+  raw: unknown,
+  key: keyof typeof EVALUATION_METRIC_LIMITS
+): number | null {
+  if (raw === undefined || raw === null || raw === '') return null
+  const num = Number(raw)
+  const { label, min, max } = EVALUATION_METRIC_LIMITS[key]
+  if (!Number.isFinite(num) || num < min || num > max) {
+    throw new TrainerError(`${label} deve estar entre ${min} e ${max}`, 400)
+  }
+  return Number(num.toFixed(2))
+}
+
+function mapEvaluationRow(row: any): StudentEvaluationEntry {
+  const numOrNull = (v: unknown) => (v != null ? Number(v) : null)
+  return {
+    id: String(row.id),
+    trainerId: String(row.trainerId),
+    trainerName: row.trainerName || 'Personal Trainer',
+    studentId: String(row.studentId),
+    evaluatedAt: String(row.evaluatedAt),
+    rating: Number(row.rating),
+    notes: String(row.notes),
+    weightKg: numOrNull(row.weightKg),
+    bodyFatPct: numOrNull(row.bodyFatPct),
+    chestCm: numOrNull(row.chestCm),
+    waistCm: numOrNull(row.waistCm),
+    armCm: numOrNull(row.armCm),
+    thighCm: numOrNull(row.thighCm),
+    createdAt: String(row.createdAt),
+  }
+}
+
+const EVALUATION_SELECT = `
+  SELECT
+    se.id,
+    se.trainer_id AS "trainerId",
+    COALESCE(NULLIF(t.name, ''), 'Personal Trainer') AS "trainerName",
+    se.student_id AS "studentId",
+    to_char(se.evaluated_at, 'YYYY-MM-DD') AS "evaluatedAt",
+    se.rating::int AS rating,
+    se.notes,
+    se.weight_kg::float AS "weightKg",
+    se.body_fat_pct::float AS "bodyFatPct",
+    se.chest_cm::float AS "chestCm",
+    se.waist_cm::float AS "waistCm",
+    se.arm_cm::float AS "armCm",
+    se.thigh_cm::float AS "thighCm",
+    se.created_at AS "createdAt"
+  FROM student_evaluations se
+  LEFT JOIN users t ON t.id = se.trainer_id
+`
 
 export const trainerService = {
   // 1. Obter perfil e código de convite mestre do Personal
@@ -354,14 +421,23 @@ export const trainerService = {
       [studentId]
     )
 
-    // Hidratação de hoje
+    // Hidratação de hoje + avaliações físicas do aluno
     const todayKey = dateKey(new Date())
-    const hydroRes = await db.query(
-      `SELECT COALESCE(consumed_ml, 0)::int AS "consumedMl"
-       FROM hydration_logs
-       WHERE user_id = $1 AND log_date = $2::date`,
-      [studentId, todayKey]
-    )
+    const [hydroRes, evaluationsRes] = await Promise.all([
+      db.query(
+        `SELECT COALESCE(consumed_ml, 0)::int AS "consumedMl"
+         FROM hydration_logs
+         WHERE user_id = $1 AND log_date = $2::date`,
+        [studentId, todayKey]
+      ),
+      db.query(
+        `${EVALUATION_SELECT}
+         WHERE se.student_id = $1
+         ORDER BY se.evaluated_at DESC, se.created_at DESC
+         LIMIT 30`,
+        [studentId]
+      ),
+    ])
 
     const weightHistory = weightsRes.rows
     const latestWeight = weightHistory.length > 0 ? Number(weightHistory[0].weightKg) : Number(student.weightKg) || 0
@@ -396,6 +472,7 @@ export const trainerService = {
       weightHistory,
       recentSessions: sessionsRes.rows,
       prescribedPlans,
+      evaluations: evaluationsRes.rows.map(mapEvaluationRow),
     }
   },
 
@@ -758,5 +835,108 @@ export const trainerService = {
     }
 
     return { success: true, message: 'Ficha removida com sucesso' }
+  },
+
+  // 9. Criar avaliação física & parecer para aluno vinculado
+  async createEvaluation(
+    trainerId: string,
+    input: CreateEvaluationInput
+  ): Promise<StudentEvaluationEntry> {
+    assertUuid(trainerId, 'Treinador')
+    const studentId = assertUuid(input?.studentId, 'Aluno')
+
+    const evaluatedAt = input?.evaluatedAt ? String(input.evaluatedAt).trim() : dateKey(new Date())
+    if (!isValidIsoDate(evaluatedAt) || evaluatedAt > dateKey(new Date())) {
+      throw new TrainerError('Data da avaliação inválida (use YYYY-MM-DD até hoje)', 400)
+    }
+
+    const rating = Number(input?.rating)
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      throw new TrainerError('Nota da avaliação deve ser um inteiro de 1 a 5', 400)
+    }
+
+    const notes = typeof input?.notes === 'string' ? input.notes.trim() : ''
+    if (!notes || notes.length > 1500) {
+      throw new TrainerError('Parecer/observações é obrigatório (máx. 1500 caracteres)', 400)
+    }
+
+    const weightKg = parseOptionalMetric(input?.weightKg, 'weightKg')
+    const bodyFatPct = parseOptionalMetric(input?.bodyFatPct, 'bodyFatPct')
+    const chestCm = parseOptionalMetric(input?.chestCm, 'chestCm')
+    const waistCm = parseOptionalMetric(input?.waistCm, 'waistCm')
+    const armCm = parseOptionalMetric(input?.armCm, 'armCm')
+    const thighCm = parseOptionalMetric(input?.thighCm, 'thighCm')
+
+    const linkRes = await db.query(
+      `SELECT id FROM trainer_students
+       WHERE trainer_id = $1 AND student_id = $2 AND status = 'active'`,
+      [trainerId, studentId]
+    )
+    if (linkRes.rows.length === 0) {
+      throw new TrainerError('Aluno não está vinculado à sua consultoria', 403)
+    }
+
+    const res = await db.query(
+      `WITH inserted AS (
+         INSERT INTO student_evaluations (
+           trainer_id, student_id, evaluated_at, rating, notes,
+           weight_kg, body_fat_pct, chest_cm, waist_cm, arm_cm, thigh_cm
+         )
+         VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING *
+       )
+       SELECT
+         i.id,
+         i.trainer_id AS "trainerId",
+         COALESCE(NULLIF(t.name, ''), 'Personal Trainer') AS "trainerName",
+         i.student_id AS "studentId",
+         to_char(i.evaluated_at, 'YYYY-MM-DD') AS "evaluatedAt",
+         i.rating::int AS rating,
+         i.notes,
+         i.weight_kg::float AS "weightKg",
+         i.body_fat_pct::float AS "bodyFatPct",
+         i.chest_cm::float AS "chestCm",
+         i.waist_cm::float AS "waistCm",
+         i.arm_cm::float AS "armCm",
+         i.thigh_cm::float AS "thighCm",
+         i.created_at AS "createdAt"
+       FROM inserted i
+       LEFT JOIN users t ON t.id = i.trainer_id`,
+      [trainerId, studentId, evaluatedAt, rating, notes, weightKg, bodyFatPct, chestCm, waistCm, armCm, thighCm]
+    )
+
+    return mapEvaluationRow(res.rows[0])
+  },
+
+  // 10. Excluir avaliação criada pelo próprio Personal
+  async deleteEvaluation(trainerId: string, evaluationId: string) {
+    assertUuid(trainerId, 'Treinador')
+    assertUuid(evaluationId, 'Avaliação')
+
+    const res = await db.query(
+      `DELETE FROM student_evaluations
+       WHERE id = $1 AND trainer_id = $2
+       RETURNING id`,
+      [evaluationId, trainerId]
+    )
+
+    if (res.rows.length === 0) {
+      throw new TrainerError('Avaliação não encontrada ou sem permissão para excluir', 404)
+    }
+
+    return { success: true, message: 'Avaliação excluída com sucesso' }
+  },
+
+  // 11. Listar avaliações recebidas pelo aluno logado (somente leitura)
+  async getMyEvaluations(studentId: string): Promise<StudentEvaluationEntry[]> {
+    assertUuid(studentId, 'Aluno')
+    const res = await db.query(
+      `${EVALUATION_SELECT}
+       WHERE se.student_id = $1
+       ORDER BY se.evaluated_at DESC, se.created_at DESC
+       LIMIT 30`,
+      [studentId]
+    )
+    return res.rows.map(mapEvaluationRow)
   },
 }

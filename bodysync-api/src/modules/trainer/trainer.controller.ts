@@ -101,4 +101,40 @@ export const trainerController = {
       next(err)
     }
   },
+
+  async createEvaluation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const studentId = Array.isArray(req.params.studentId)
+        ? req.params.studentId[0]
+        : req.params.studentId
+      const evaluation = await trainerService.createEvaluation(req.userId!, {
+        ...req.body,
+        studentId,
+      })
+      res.status(201).json({ evaluation, message: 'Avaliação registrada com sucesso!' })
+    } catch (err) {
+      next(err)
+    }
+  },
+
+  async deleteEvaluation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const evaluationId = Array.isArray(req.params.evaluationId)
+        ? req.params.evaluationId[0]
+        : req.params.evaluationId
+      const result = await trainerService.deleteEvaluation(req.userId!, evaluationId)
+      res.json(result)
+    } catch (err) {
+      next(err)
+    }
+  },
+
+  async getMyEvaluations(req: Request, res: Response, next: NextFunction) {
+    try {
+      const evaluations = await trainerService.getMyEvaluations(req.userId!)
+      res.json({ evaluations })
+    } catch (err) {
+      next(err)
+    }
+  },
 }

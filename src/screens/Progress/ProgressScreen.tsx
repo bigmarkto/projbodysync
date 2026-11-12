@@ -15,6 +15,13 @@ import { useTheme } from "../../context/ThemeProvider";
 import { useTabFocus } from "../../context/TabFocusContext";
 import { useApi } from "../../hooks/useApi";
 import { lightColors } from "../../theme/colors";
+import {
+  DatePickerField,
+  formatDateBR,
+  toLocalDateKey,
+} from "../../components/DateTimePickerField";
+import { EvaluationCard } from "../../components/EvaluationCard";
+import { createTrainerApi, StudentEvaluation } from "../Trainer/trainerService";
 
 interface ProgressSummary {
   current: number | null;
@@ -53,16 +60,19 @@ const ProgressScreen = () => {
   const { colors, isDark } = useTheme();
   const { focusTick } = useTabFocus("progress");
   const { request } = useApi();
+  const trainerApi = useMemo(() => createTrainerApi(request), [request]);
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [stats, setStats] = useState<WorkoutStats | null>(null);
+  const [evaluations, setEvaluations] = useState<StudentEvaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [weightInput, setWeightInput] = useState("");
+  const [measuredAt, setMeasuredAt] = useState(() => toLocalDateKey(new Date()));
   const [goalInput, setGoalInput] = useState("");
   const [editingGoal, setEditingGoal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,19 +80,21 @@ const ProgressScreen = () => {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [sumRes, statsRes] = await Promise.all([
+      const [sumRes, statsRes, evalList] = await Promise.all([
         request("/measurements/summary"),
         request("/sessions/stats"),
+        trainerApi.getMyEvaluations().catch(() => [] as StudentEvaluation[]),
       ]);
       if (sumRes.ok) setSummary(await sumRes.json());
       if (statsRes.ok) setStats(await statsRes.json());
+      setEvaluations(evalList);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar progresso.");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [request]);
+  }, [request, trainerApi]);
 
   useEffect(() => {
     load();
@@ -103,22 +115,30 @@ const ProgressScreen = () => {
       setError("Informe um peso válido.");
       return;
     }
+    if (!measuredAt || !/^\d{4}-\d{2}-\d{2}$/.test(measuredAt)) {
+      setError("Selecione uma data válida para a pesagem.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const res = await request("/measurements", {
         method: "POST",
-        body: JSON.stringify({ weightKg }),
+        body: JSON.stringify({ weightKg, measuredAt }),
       });
-      if (!res.ok) throw new Error("Não foi possível registrar o peso.");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Não foi possível registrar o peso.");
+      }
       setWeightInput("");
+      setMeasuredAt(toLocalDateKey(new Date()));
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao registrar peso.");
     } finally {
       setSaving(false);
     }
-  }, [weightInput, request, load]);
+  }, [weightInput, measuredAt, request, load]);
 
   const saveGoal = useCallback(async () => {
     const desiredWeightKg = parseNum(goalInput);
@@ -266,7 +286,21 @@ const ProgressScreen = () => {
               <View style={[styles.cardHeaderIcon, { backgroundColor: colors.infoLight }]}>
                 <Ionicons name="add-circle" size={16} color={colors.info} />
               </View>
-              <Text style={styles.cardTitle}>Registrar peso de hoje</Text>
+              <Text style={styles.cardTitle}>
+                {measuredAt === toLocalDateKey(new Date())
+                  ? "Registrar peso de hoje"
+                  : `Registrar peso (${formatDateBR(measuredAt)})`}
+              </Text>
+            </View>
+            <View style={styles.datePickerRow}>
+              <DatePickerField
+                compact
+                value={measuredAt}
+                maximumDate={new Date()}
+                onChange={(iso) => {
+                  if (iso) setMeasuredAt(iso);
+                }}
+              />
             </View>
             <View style={styles.inlineForm}>
               <TextInput
@@ -398,6 +432,29 @@ const ProgressScreen = () => {
               </View>
             )}
           </View>
+
+          {/* ─── Avaliações do Personal Trainer ───────────────────────────── */}
+          {evaluations.length > 0 && (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardTitleRow}>
+                  <View style={[styles.cardHeaderIcon, { backgroundColor: colors.primaryLight }]}>
+                    <Ionicons name="clipboard" size={16} color={colors.primary} />
+                  </View>
+                  <Text style={styles.cardTitle}>
+                    Avaliações do Personal ({evaluations.length})
+                  </Text>
+                </View>
+              </View>
+              {evaluations.map((ev) => (
+                <EvaluationCard
+                  key={ev.id}
+                  evaluation={ev}
+                  showTrainerName
+                />
+              ))}
+            </View>
+          )}
         </ScrollView>
       )}
     </View>
@@ -555,10 +612,13 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       color: colors.primary,
     },
 
+    datePickerRow: {
+      marginTop: 12,
+    },
     inlineForm: {
       flexDirection: "row",
       alignItems: "center",
-      marginTop: 14,
+      marginTop: 12,
       gap: 10,
     },
     input: {

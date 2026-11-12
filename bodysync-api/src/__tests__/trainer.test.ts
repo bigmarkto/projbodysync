@@ -406,4 +406,208 @@ test('Trainer Module: TDD (Erros, Autorização e Schema SQL)', async (t) => {
     assert.match(sql, /ON DELETE SET NULL/i)
     assert.match(sql, /CREATE UNIQUE INDEX/i)
   })
+
+  await t.test('createEvaluation valida campos, vínculo ativo e persiste avaliação física do Personal', async () => {
+    assert.equal(typeof trainerService.createEvaluation, 'function', 'createEvaluation deve existir')
+
+    const trainerId = '11111111-1111-4111-8111-111111111111'
+    const studentId = '22222222-2222-4222-8222-222222222222'
+
+    await assert.rejects(
+      () =>
+        trainerService.createEvaluation(trainerId, {
+          studentId,
+          evaluatedAt: '11/11/2026',
+          rating: 5,
+          notes: 'Boa evolução',
+        }),
+      (err) => err instanceof TrainerError && err.statusCode === 400
+    )
+
+    await assert.rejects(
+      () =>
+        trainerService.createEvaluation(trainerId, {
+          studentId,
+          evaluatedAt: '2026-11-11',
+          rating: 6,
+          notes: 'Nota fora da faixa',
+        }),
+      (err) => err instanceof TrainerError && err.statusCode === 400
+    )
+
+    await assert.rejects(
+      () =>
+        trainerService.createEvaluation(trainerId, {
+          studentId,
+          evaluatedAt: '2026-11-11',
+          rating: 4,
+          notes: '   ',
+        }),
+      (err) => err instanceof TrainerError && err.statusCode === 400
+    )
+
+    await withDbStub(async (sql) => {
+      if (/FROM trainer_students/.test(sql)) return { rows: [] }
+      return { rows: [] }
+    }, async () => {
+      await assert.rejects(
+        () =>
+          trainerService.createEvaluation(trainerId, {
+            studentId,
+            evaluatedAt: '2026-11-11',
+            rating: 5,
+            notes: 'Sem vínculo ativo',
+          }),
+        (err) => err instanceof TrainerError && err.statusCode === 403
+      )
+    })
+
+    const queries = []
+    await withDbStub(async (sql, params) => {
+      queries.push({ sql, params })
+      if (/FROM trainer_students/.test(sql)) return { rows: [{ id: 'link-1' }] }
+      if (/INSERT INTO student_evaluations/.test(sql)) {
+        return {
+          rows: [{
+            id: '33333333-3333-4333-8333-333333333333',
+            trainerId,
+            trainerName: 'Personal Teste',
+            studentId,
+            evaluatedAt: '2026-11-11',
+            rating: 5,
+            notes: 'Excelente evolução de carga e postura.',
+            weightKg: 76.5,
+            bodyFatPct: 14.2,
+            chestCm: null,
+            waistCm: 80.5,
+            armCm: 37,
+            thighCm: null,
+            createdAt: new Date().toISOString(),
+          }],
+        }
+      }
+      return { rows: [] }
+    }, async () => {
+      const created = await trainerService.createEvaluation(trainerId, {
+        studentId,
+        evaluatedAt: '2026-11-11',
+        rating: 5,
+        notes: 'Excelente evolução de carga e postura.',
+        weightKg: 76.5,
+        bodyFatPct: 14.2,
+        waistCm: 80.5,
+        armCm: 37,
+      })
+      assert.equal(created.rating, 5)
+      assert.equal(created.weightKg, 76.5)
+      assert.equal(created.waistCm, 80.5)
+      const ins = queries.find((q) => /INSERT INTO student_evaluations/.test(q.sql))
+      assert.ok(ins, 'deve executar INSERT em student_evaluations')
+    })
+  })
+
+  await t.test('deleteEvaluation e getMyEvaluations respeitam posse e UUID', async () => {
+    assert.equal(typeof trainerService.deleteEvaluation, 'function', 'deleteEvaluation deve existir')
+    assert.equal(typeof trainerService.getMyEvaluations, 'function', 'getMyEvaluations deve existir')
+
+    const trainerId = '11111111-1111-4111-8111-111111111111'
+    const studentId = '22222222-2222-4222-8222-222222222222'
+    const evalId = '33333333-3333-4333-8333-333333333333'
+
+    await assert.rejects(
+      () => trainerService.deleteEvaluation(trainerId, 'invalid-id'),
+      (err) => err instanceof TrainerError && err.statusCode === 400
+    )
+
+    const queries = []
+    await withDbStub(async (sql, params) => {
+      queries.push({ sql, params })
+      if (/DELETE FROM student_evaluations/.test(sql)) return { rows: [{ id: evalId }] }
+      if (/FROM student_evaluations se/.test(sql)) {
+        return {
+          rows: [{
+            id: evalId,
+            trainerId,
+            trainerName: 'Personal Teste',
+            studentId,
+            evaluatedAt: '2026-11-11',
+            rating: 4,
+            notes: 'Constância ótima.',
+            weightKg: 76,
+            bodyFatPct: null,
+            chestCm: null,
+            waistCm: null,
+            armCm: null,
+            thighCm: null,
+            createdAt: new Date().toISOString(),
+          }],
+        }
+      }
+      return { rows: [] }
+    }, async () => {
+      const del = await trainerService.deleteEvaluation(trainerId, evalId)
+      assert.equal(del.success, true)
+      const delQuery = queries.find((q) => /DELETE FROM student_evaluations/.test(q.sql))
+      assert.match(delQuery.sql, /trainer_id/, 'exclusão deve validar trainer_id')
+
+      const mine = await trainerService.getMyEvaluations(studentId)
+      assert.equal(mine.length, 1)
+      assert.equal(mine[0].trainerName, 'Personal Teste')
+    })
+  })
+
+  await t.test('measurementService valida measuredAt e mantém peso atual cronológico em datas retroativas', async () => {
+    const { measurementService, MeasurementValidationError } = require('../modules/measurement/measurement.service')
+    const { measurementController } = require('../modules/measurement/measurement.controller')
+    assert.ok(MeasurementValidationError, 'MeasurementValidationError deve existir para retornar 400')
+
+    await assert.rejects(
+      () =>
+        measurementService.create('22222222-2222-4222-8222-222222222222', {
+          weightKg: 74,
+          measuredAt: 'data-invalida',
+        }),
+      (err) => err instanceof MeasurementValidationError
+    )
+
+    let statusCode = 200
+    let body = null
+    await measurementController.create(
+      { userId: '22222222-2222-4222-8222-222222222222', body: { weightKg: 74, measuredAt: '2026-02-31' } },
+      { status(c) { statusCode = c; return this }, json(d) { body = d; return this } },
+      () => {}
+    )
+    assert.equal(statusCode, 400)
+    assert.ok(body?.error)
+
+    const executed = []
+    await withDbStub(async (sql, params) => {
+      executed.push({ sql, params })
+      if (/INSERT INTO body_measurements/.test(sql)) {
+        return { rows: [{ id: 10, weight_kg: 72, measured_at: '2026-10-01' }] }
+      }
+      if (/SELECT weight_kg FROM body_measurements/.test(sql)) {
+        return { rows: [{ weight_kg: 75.5 }] }
+      }
+      return { rows: [] }
+    }, async () => {
+      await measurementService.create('22222222-2222-4222-8222-222222222222', {
+        weightKg: 72,
+        measuredAt: '2026-10-01',
+      })
+      const profileUpdate = executed.find((q) => /UPDATE user_profiles SET weight_kg/.test(q.sql))
+      assert.ok(profileUpdate, 'deve atualizar user_profiles com a medição cronologicamente mais recente')
+      assert.equal(profileUpdate.params[0], 75.5, 'medição retroativa não deve sobrescrever peso atual mais recente')
+    })
+  })
+
+  await t.test('migration 006 cria student_evaluations com RLS, revogação anon e índices', () => {
+    const migPath = path.resolve(__dirname, '../../migrations/006_student_evaluations.sql')
+    assert.equal(fs.existsSync(migPath), true, 'migration 006 deve existir')
+    const sql = fs.readFileSync(migPath, 'utf8')
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.student_evaluations/i)
+    assert.match(sql, /ENABLE ROW LEVEL SECURITY/i)
+    assert.match(sql, /REVOKE ALL ON TABLE public\.student_evaluations FROM anon, authenticated/i)
+    assert.match(sql, /CREATE INDEX/i)
+  })
 })

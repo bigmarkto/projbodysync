@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Modal,
-  Share,
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
@@ -16,7 +15,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeProvider";
 import { useAuth } from "../../context/AuthContext";
 import { useApi } from "../../hooks/useApi";
-import { createTrainerApi } from "./trainerService";
+import { HorizontalScrollStrip } from "../../components/HorizontalScrollStrip";
+import {
+  copyToClipboard,
+  createTrainerApi,
+  openWhatsAppInvite,
+  shareTrainerInvite,
+} from "./trainerService";
 import {
   Student,
   TrainerProfileData,
@@ -24,6 +29,7 @@ import {
 } from "./trainerTypes";
 
 interface Props {
+  refreshTick?: number;
   onSelectStudent: (student: Student) => void;
   onPrescribeForStudent: (student: Student) => void;
 }
@@ -31,6 +37,7 @@ interface Props {
 type FilterType = "all" | "today" | "yesterday" | "warning";
 
 export const TrainerHomeScreen = ({
+  refreshTick = 0,
   onSelectStudent,
   onPrescribeForStudent,
 }: Props) => {
@@ -56,6 +63,7 @@ export const TrainerHomeScreen = ({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [copied, setCopied] = useState(false);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [copyError, setCopyError] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
@@ -79,6 +87,10 @@ export const TrainerHomeScreen = ({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (refreshTick > 0) loadData();
+  }, [refreshTick, loadData]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -104,16 +116,12 @@ export const TrainerHomeScreen = ({
   const handleCopyCode = async () => {
     if (!profile.inviteCode || profile.inviteCode === "---") return;
     setCopyError(false);
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(profile.inviteCode);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2400);
-        return;
-      }
-      setCopyError(true);
-      setTimeout(() => setCopyError(false), 2800);
-    } catch {
+    setShareStatus(null);
+    const ok = await copyToClipboard(profile.inviteCode);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2400);
+    } else {
       setCopyError(true);
       setTimeout(() => setCopyError(false), 2800);
     }
@@ -121,12 +129,18 @@ export const TrainerHomeScreen = ({
 
   const handleShareCode = async () => {
     if (!profile.inviteCode || profile.inviteCode === "---") return;
-    try {
-      await Share.share({
-        message: `Olá! Conecte-se comigo no BodySync usando meu código de treinador: ${profile.inviteCode}. Baixe o app e adicione o código em Ajustes!`,
-      });
-    } catch {
-      // Ignora cancelamento
+    setShareStatus(null);
+    const outcome = await shareTrainerInvite(profile.inviteCode);
+    if (outcome === "copied") {
+      setShareStatus("Mensagem de convite copiada para enviar!");
+      setTimeout(() => setShareStatus(null), 3200);
+    } else if (outcome === "failed") {
+      setCopyError(true);
+      setShareStatus("Não foi possível compartilhar automaticamente. Toque no código acima.");
+      setTimeout(() => {
+        setCopyError(false);
+        setShareStatus(null);
+      }, 3400);
     }
   };
 
@@ -215,35 +229,6 @@ export const TrainerHomeScreen = ({
           </View>
         )}
 
-        {/* Painel de Métricas Rápidas */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="people" size={18} color={colors.primary} />
-            </View>
-            <Text style={styles.statNumber}>{profile.activeStudentsCount}</Text>
-            <Text style={styles.statLabel}>Alunos Ativos</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: colors.successLight }]}>
-              <Ionicons name="flash" size={18} color={colors.success} />
-            </View>
-            <Text style={[styles.statNumber, { color: colors.success }]}>
-              {students.filter((s) => s.lastWorkoutStatus === "today").length}
-            </Text>
-            <Text style={styles.statLabel}>Treinaram Hoje</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: colors.infoLight }]}>
-              <Ionicons name="barbell" size={18} color={colors.info} />
-            </View>
-            <Text style={styles.statNumber}>{profile.totalPrescriptions}</Text>
-            <Text style={styles.statLabel}>Treinos Prescritos</Text>
-          </View>
-        </View>
-
         {/* Barra de Pesquisa e Filtros */}
         <View style={styles.searchSection}>
           <View style={styles.searchBar}>
@@ -262,7 +247,7 @@ export const TrainerHomeScreen = ({
             )}
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          <HorizontalScrollStrip contentContainerStyle={styles.filterScroll}>
             {[
               { id: "all", label: `Todos (${students.length})` },
               { id: "today", label: "Treinaram Hoje" },
@@ -283,7 +268,7 @@ export const TrainerHomeScreen = ({
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </HorizontalScrollStrip>
         </View>
 
         {/* Lista de Alunos */}
@@ -471,34 +456,43 @@ export const TrainerHomeScreen = ({
 
             <Text style={styles.modalInstructions}>
               1. Peça ao aluno para abrir o BodySync.{"\n"}
-              2. Ir em Ajustes &gt; "Conectar Personal Trainer".{"\n"}
+              2. Ir em Ajustes &gt; "Meu Personal Trainer".{"\n"}
               3. Digitar este código para sincronizar os treinos!
             </Text>
 
-            {/* Ações: Copiar Código e Compartilhar */}
+            {!!shareStatus && (
+              <View
+                style={[
+                  styles.shareStatusBox,
+                  copyError && { backgroundColor: isDark ? "rgba(245, 158, 11, 0.14)" : "#FFFBEB" },
+                ]}
+              >
+                <Ionicons
+                  name={copyError ? "alert-circle" : "checkmark-circle"}
+                  size={15}
+                  color={copyError ? colors.warning : colors.success}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.shareStatusText, copyError && { color: colors.warning }]}>
+                  {shareStatus}
+                </Text>
+              </View>
+            )}
+
+            {/* Ações: WhatsApp e Compartilhar (sem botão duplicado de copiar) */}
             <View style={styles.modalActionsRow}>
               <TouchableOpacity
-                style={[
-                  styles.modalCopyBtn,
-                  copied && { borderColor: colors.success, backgroundColor: isDark ? "rgba(16, 185, 129, 0.12)" : "#F0FDF4" },
-                ]}
-                onPress={handleCopyCode}
+                style={styles.modalWhatsappBtn}
+                onPress={() => openWhatsAppInvite(profile.inviteCode)}
                 activeOpacity={0.8}
               >
                 <Ionicons
-                  name={copied ? "checkmark" : "copy-outline"}
+                  name="logo-whatsapp"
                   size={16}
-                  color={copied ? colors.success : colors.text.primary}
+                  color="#16A34A"
                   style={{ marginRight: 6 }}
                 />
-                <Text
-                  style={[
-                    styles.modalCopyBtnText,
-                    copied && { color: colors.success },
-                  ]}
-                >
-                  {copied ? "Copiado!" : "Copiar Código"}
-                </Text>
+                <Text style={styles.modalWhatsappText}>WhatsApp</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -621,40 +615,6 @@ const createStyles = (colors: any, isDark: boolean) =>
       color: "#FFFFFF",
       fontFamily: "Poppins_600SemiBold",
       fontSize: 13,
-    },
-    statsRow: {
-      flexDirection: "row",
-      gap: 10,
-      marginBottom: 16,
-    },
-    statCard: {
-      flex: 1,
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 12,
-      alignItems: "center",
-    },
-    statIconWrap: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 6,
-    },
-    statNumber: {
-      fontFamily: "Poppins_700Bold",
-      fontSize: 19,
-      color: colors.text.primary,
-      lineHeight: 24,
-    },
-    statLabel: {
-      fontFamily: "Poppins_500Medium",
-      fontSize: 11,
-      color: colors.text.secondary,
-      textAlign: "center",
     },
     searchSection: {
       marginBottom: 16,
@@ -924,13 +884,28 @@ const createStyles = (colors: any, isDark: boolean) =>
       fontSize: 12,
       color: colors.text.tertiary,
       lineHeight: 18,
-      marginBottom: 20,
+      marginBottom: 14,
+    },
+    shareStatusBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: isDark ? "rgba(16, 185, 129, 0.14)" : "#ECFDF5",
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginBottom: 14,
+    },
+    shareStatusText: {
+      flex: 1,
+      fontFamily: "Poppins_500Medium",
+      fontSize: 12,
+      color: colors.success,
     },
     modalActionsRow: {
       flexDirection: "row",
       gap: 10,
     },
-    modalCopyBtn: {
+    modalWhatsappBtn: {
       flex: 1,
       flexDirection: "row",
       alignItems: "center",
@@ -938,13 +913,13 @@ const createStyles = (colors: any, isDark: boolean) =>
       height: 48,
       borderRadius: 14,
       borderWidth: 1.5,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
+      borderColor: isDark ? "rgba(22, 163, 74, 0.45)" : "#BBF7D0",
+      backgroundColor: isDark ? "rgba(22, 163, 74, 0.14)" : "#F0FDF4",
     },
-    modalCopyBtnText: {
+    modalWhatsappText: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 13,
-      color: colors.text.primary,
+      color: "#16A34A",
     },
     modalShareBtn: {
       flex: 1.2,

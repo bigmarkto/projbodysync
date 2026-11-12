@@ -1,6 +1,6 @@
 // src/modules/measurement/measurement.controller.ts
 import { Request, Response, NextFunction } from 'express'
-import { measurementService } from './measurement.service'
+import { measurementService, MeasurementValidationError } from './measurement.service'
 
 export const measurementController = {
   // POST /measurements — registra peso
@@ -12,7 +12,10 @@ export const measurementController = {
       const measurement = await measurementService.create(userId, req.body)
       res.status(201).json({ measurement })
     } catch (error) {
-      if (error instanceof Error && error.message === 'Peso inválido') {
+      if (
+        error instanceof MeasurementValidationError ||
+        (error instanceof Error && error.message === 'Peso inválido')
+      ) {
         return res.status(400).json({ error: error.message })
       }
       next(error)

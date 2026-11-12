@@ -19,6 +19,14 @@ export const TrainerMainFlow = () => {
   const [currentStudentId, setCurrentStudentId] = useState<string | null>(null);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [prescribeNotice, setPrescribeNotice] = useState<string | null>(null);
+  const [tabTicks, setTabTicks] = useState<{ analytics: number; students: number }>({
+    analytics: 0,
+    students: 0,
+  });
+
+  const bumpTab = (tab: "analytics" | "students") => {
+    setTabTicks((prev) => ({ ...prev, [tab]: prev[tab] + 1 }));
+  };
 
   const handleSelectStudent = (student: Student) => {
     setPrescribeNotice(null);
@@ -56,9 +64,11 @@ export const TrainerMainFlow = () => {
     if (activeTab === "analytics") {
       return (
         <TrainerAnalyticsScreen
+          refreshTick={tabTicks.analytics}
           onGoToStudents={() => {
             setActiveTab("students");
             setSubScreen("list");
+            bumpTab("students");
           }}
           onSelectStudentId={handleSelectStudentId}
         />
@@ -80,12 +90,14 @@ export const TrainerMainFlow = () => {
           onBack={() => {
             setSubScreen("list");
             setPrescribeNotice(null);
+            bumpTab("students");
           }}
           onPrescribe={handleOpenPrescribe}
           onDisconnected={() => {
             setCurrentStudentId(null);
             setCurrentStudent(null);
             setSubScreen("list");
+            bumpTab("students");
           }}
         />
       );
@@ -103,6 +115,7 @@ export const TrainerMainFlow = () => {
 
     return (
       <TrainerHomeScreen
+        refreshTick={tabTicks.students}
         onSelectStudent={handleSelectStudent}
         onPrescribeForStudent={handleOpenPrescribe}
       />
@@ -130,7 +143,10 @@ export const TrainerMainFlow = () => {
         >
           <TouchableOpacity
             style={styles.tabBtn}
-            onPress={() => setActiveTab("analytics")}
+            onPress={() => {
+              setActiveTab("analytics");
+              bumpTab("analytics");
+            }}
             activeOpacity={0.7}
           >
             <Ionicons
@@ -153,6 +169,7 @@ export const TrainerMainFlow = () => {
             onPress={() => {
               setActiveTab("students");
               setSubScreen("list");
+              bumpTab("students");
             }}
             activeOpacity={0.7}
           >

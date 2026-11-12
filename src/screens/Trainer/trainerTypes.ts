@@ -29,6 +29,23 @@ export interface StudentWeightLog {
   weightKg: number;
 }
 
+export interface StudentEvaluation {
+  id: string;
+  trainerId: string;
+  trainerName: string;
+  studentId: string;
+  evaluatedAt: string;
+  rating: number;
+  notes: string;
+  weightKg: number | null;
+  bodyFatPct: number | null;
+  chestCm: number | null;
+  waistCm: number | null;
+  armCm: number | null;
+  thighCm: number | null;
+  createdAt: string;
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -52,6 +69,7 @@ export interface Student {
   plans: StudentWorkoutPlan[];
   recentSessions: StudentHistorySession[];
   weightHistory: StudentWeightLog[];
+  evaluations: StudentEvaluation[];
 }
 
 export interface TrainerAnalyticsData {

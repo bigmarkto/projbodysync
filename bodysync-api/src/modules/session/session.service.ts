@@ -14,6 +14,18 @@ export function dateKey(d: Date = new Date()): string {
   }).format(d)
 }
 
+export function isValidIsoDate(raw: unknown): raw is string {
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false
+  const [y, m, d] = raw.split('-').map(Number)
+  if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false
+  const check = new Date(Date.UTC(y, m - 1, d))
+  return (
+    check.getUTCFullYear() === y &&
+    check.getUTCMonth() === m - 1 &&
+    check.getUTCDate() === d
+  )
+}
+
 function addDaysUTC(base: Date, n: number): Date {
   const d = new Date(base.getTime())
   d.setUTCDate(d.getUTCDate() + n)

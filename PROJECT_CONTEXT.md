@@ -28,7 +28,8 @@
 - **Fluxo Personalizado por Perfil no Onboarding:** No [`RegisterScreen.tsx`](src/screens/Registration/RegisterScreen.tsx), contas `comum` percorrem 7 etapas e contas `professor` percorrem 3 etapas (`Step1PersonalData` -> `Step2Subscription` -> `Step7Confirmation`), ambos com `PaymentScreen` ao escolher plano pago e auto-login direto ao concluir. Trocar o perfil em `Step1PersonalData` limpa `subscriptionType` selecionado.
 
 ### B. Fusos Horários e Datas
-- **Regra de Fuso:** No Brasil (`America/Sao_Paulo`), datas de hidratação, pesagem e sessões de treino nunca usam `new Date().toISOString().slice(0, 10)` sem conversão, pois após as 21h UTC causava salto de dia. Usamos âncora UTC-noon (`T12:00:00.000Z`) ou conversão via `Intl.DateTimeFormat`.
+- **Regra de Fuso:** No Brasil (`America/Sao_Paulo`), datas de hidratação, pesagem e sessões de treino nunca usam `new Date().toISOString().slice(0, 10)` sem conversão, pois após as 21h UTC causava salto de dia. No backend usamos âncora UTC-noon (`T12:00:00.000Z`), `Intl.DateTimeFormat` (`dateKey`) e validação estrita [`isValidIsoDate`](bodysync-api/src/modules/session/session.service.ts); no frontend datas `YYYY-MM-DD` são parseadas/formatadas localmente por [`parseDateOnlyLocal` / `formatDateBR`](src/components/DateTimePickerField.tsx).
+- **Pesagens Retroativas:** Em [`measurement.service.ts`](bodysync-api/src/modules/measurement/measurement.service.ts), `POST /api/measurements` valida `measuredAt` (`400` se inválido/futuro) e sincroniza `user_profiles.weight_kg` apenas pela medição cronologicamente mais recente (`ORDER BY measured_at DESC, id DESC`).
 
 ### C. Dependências Limpas
 - Foram removidas 13 dependências desnecessárias do `package.json` (`@gluestack-*`, `react-native-paper`, `@react-navigation/bottom-tabs`, etc.). Não adicione novas bibliotecas para funcionalidades que o React Native nativo já oferece.
@@ -57,13 +58,17 @@
 - **Automação de Migrações:**
   - Script runner em [`bodysync-api/src/scripts/run-migration.ts`](file:///c:/dev/projbodysync/bodysync-api/src/scripts/run-migration.ts) executável via `npm --prefix bodysync-api run migrate`.
 
-### E. Módulo Personal Trainer, Prescrições & Regras de Negócio (Migrações 003–005)
+### E. Módulo Personal Trainer, Prescrições & Regras de Negócio (Migrações 003–006)
 - **Separação Estrita de Papéis (`RootNavigator` & Guards):**
-  - Removidos placeholders de troca de papel (`RolePreviewContext`, `mockTrainerData`). A navegação respeita `user.role` real vindo da API: `'professor'` entra no [`TrainerMainFlow`](src/screens/Trainer/TrainerMainFlow.tsx) (aba inicial `Métricas`, seguida de `Alunos` e `Ajustes`); `'comum'` entra no app do aluno.
-  - Endpoints de consultoria (`/api/trainer/profile`, `/students`, `/students/:studentId`, `/prescribe`, `/plans/:planId`, `/analytics`) são protegidos por `requireProfessor`.
+  - Removidos placeholders de troca de papel (`RolePreviewContext`, `mockTrainerData`). A navegação respeita `user.role` real vindo da API: `'professor'` entra no [`TrainerMainFlow`](src/screens/Trainer/TrainerMainFlow.tsx) (aba inicial `Métricas`, seguida de `Alunos` e `Ajustes`, com gatilho leve de atualização entre abas); `'comum'` entra no app do aluno.
+  - Endpoints de consultoria (`/api/trainer/profile`, `/students`, `/students/:studentId`, `/students/:studentId/evaluations`, `/evaluations/:evaluationId`, `/prescribe`, `/plans/:planId`, `/analytics`) são protegidos por `requireProfessor`.
 - **Vínculo Personal <-> Aluno (`trainer_students`):**
   - Cada treinador recebe um código mestre único `BS-XXXX` (`student_id IS NULL`, garantido pelos índices únicos parciais das migrações `004` e `005` com retry contra colisão `23505`).
   - Apenas usuários `role = 'comum'` podem conectar-se como alunos (`connectStudent` rejeita `professor`/`admin` com `403`), e o desvínculo (`DELETE /api/trainer/students/:studentId`) funciona de forma mútua.
+  - O compartilhamento do código usa [`shareTrainerInvite`](src/screens/Trainer/trainerService.ts) (Share nativo no Mobile / fallback com cópia automática da mensagem na Web desktop) + [`openWhatsAppInvite`](src/screens/Trainer/trainerService.ts), acessível no modal de `TrainerHomeScreen` e em `Ajustes` (`SettingsScreen`) do Personal.
+- **Avaliações Físicas & Parecer Técnico (`006_student_evaluations.sql`):**
+  - Tabela `student_evaluations` com RLS ativado, revogação para `anon/authenticated`, nota `1..5`, parecer obrigatório e métricas corporais opcionais (`weight_kg`, `body_fat_pct`, `chest_cm`, `waist_cm`, `arm_cm`, `thigh_cm`).
+  - O Personal cria/exclui avaliações na aba `Avaliações` de `StudentDetailScreen`; o aluno visualiza o histórico em modo somente leitura via `GET /api/trainer/my-evaluations` em [`ProgressScreen.tsx`](src/screens/Progress/ProgressScreen.tsx), compartilhando o componente [`EvaluationCard.tsx`](src/components/EvaluationCard.tsx).
 - **Prescrição Fiel & Catálogo Completo (880 exercícios):**
   - Em [`TrainerPrescribeScreen.tsx`](src/screens/Trainer/TrainerPrescribeScreen.tsx), a seleção de catálogo consulta `GET /api/exercises` no servidor (`search` com debounce, filtro por `category` via `/exercises/categories`, `limit=50` e paginação `"Carregar mais"`), superando o limite padrão de 20 itens por página.
   - A migração `005_trainer_plan_rest_and_fk.sql` adicionou `rest_seconds` (`10..600`, padrão `60`) em `plan_exercises`. O descanso prescrito é salvo em [`prescribeWorkout`](bodysync-api/src/modules/trainer/trainer.service.ts), exibido com a categoria real do exercício na `StudentDetailScreen` e no `PlanDetail`, e aplicado no cronômetro entre séries do `WorkoutPlayer`.
@@ -72,6 +77,7 @@
   - O aluno vê o selo `Personal`, mas **não pode editar nem excluir** treinos prescritos (`403 ForbiddenPlanError` na API + botões substituídos por cadeado/ocultos na UI).
   - Apenas o próprio Personal pode remover fichas que prescreveu em `StudentDetailScreen` (`DELETE /api/trainer/plans/:planId`), com `workout_sessions.plan_id` configurado como `ON DELETE SET NULL` na migração `005` para preservar o histórico de treinos executados.
 - **Métricas & Janela Semanal Unificada:**
+  - Os indicadores gerais (`Alunos Ativos`, `Treinaram Hoje`, `Prescrições`) ficam consolidados exclusivamente na aba `Métricas` ([`TrainerAnalyticsScreen.tsx`](src/screens/Trainer/TrainerAnalyticsScreen.tsx)), deixando `TrainerHomeScreen` focada na lista/busca/filtros de alunos.
   - [`fetchStudentsWithSessionTotals`](bodysync-api/src/modules/trainer/trainer.service.ts) consolida a janela de 7 dias no fuso `America/Sao_Paulo` em uma única CTE SQL reaproveitada por `listStudents` e `getAnalytics`, e `getStudentDetail` conta frequência semanal diretamente no SQL (sem limite de 15 linhas).
   - Alunos sem nenhuma sessão ainda usam `joinedAt` para cálculo de inatividade (`attentionStudents`), recebendo `neverTrained: true` se vinculados há 4+ dias sem treinar (sem falso alerta de "7 dias inativo" no cadastro).
 
@@ -92,7 +98,8 @@
   - No `WorkoutPlayer.tsx`, a fase de descanso entre séries respeita `current.restSeconds` (fallback `45s`) e conta com um anel giratório 360° animado via `Animated.loop` e `useNativeDriver: true` (idêntico à estética do `PreparingScreen.tsx`), envolvendo o círculo do cronômetro.
 - **Compatibilidade Cross-Platform (Web + Mobile):**
   - Substituímos `Alert.alert` com botões de ação pelo componente reutilizável [`ConfirmModal.tsx`](src/components/ConfirmModal.tsx) (usado em exclusões, interrupção de treino, saída da conta em `SettingsScreen` e ações na `StudentDetailScreen`).
-  - Inputs de data/hora do cadastro (`Step1PersonalData`, `Step4Schedule`) exibem campo de texto nativo (`DD/MM/AAAA` / `HH:mm`) em `Platform.OS === 'web'`, onde o `DateTimePicker` nativo é nulo.
+  - Seletores de data e hora usam o componente unificado [`DateTimePickerField.tsx`](src/components/DateTimePickerField.tsx) (input HTML nativo `date`/`time` no Web adaptado ao tema, `@react-native-community/datetimepicker` nativo no Android e `spinner` com botões `Cancelar/Confirmar` no iOS), aplicado no cadastro (`Step1PersonalData`, `Step4Schedule`), pesagem em `ProgressScreen` e criação de avaliações.
+  - Faixas horizontais de filtros e abas (`TrainerHomeScreen` e as 4 abas em `StudentDetailScreen`) usam [`HorizontalScrollStrip.tsx`](src/components/HorizontalScrollStrip.tsx) para sinalizar overflow com *peek* e setas dinâmicas.
   - Evitar `<TouchableOpacity>` aninhado dentro de outro `<TouchableOpacity>` (cards de aluno e alerta no painel do Personal usam `<View>` externa e cliques separados).
   - Abas do aluno compartilham [`TabFocusContext.tsx`](src/context/TabFocusContext.tsx) no `TabNavigator` para recarregar Home, Treinos e Progresso ao alternar de aba; em [`AuthContext.tsx`](src/context/AuthContext.tsx), `logout` envia `keepalive: true`.
 
@@ -113,8 +120,8 @@
 
 - **Backend:**
   - Iniciar: `cd bodysync-api && npm run dev` (Porta 3000; no Windows também via `node node_modules/tsx/dist/cli.mjs src/server.ts`).
-  - Executar Migrações SQL: `npm --prefix bodysync-api run migrate` (atualmente até `005_trainer_plan_rest_and_fk.sql`).
-  - Testes completos da API: `cd bodysync-api && npx tsx --test src/__tests__/trainer.test.ts src/__tests__/audit-fixes.test.ts` (22/22 testes cobrindo auth, fuso, hidratação, treino e módulo personal).
+  - Executar Migrações SQL: `npm --prefix bodysync-api run migrate -- 006_student_evaluations.sql` (migrações atuais: `001` a `006`).
+  - Testes completos da API: `cd bodysync-api && npx tsx --test src/__tests__/trainer.test.ts src/__tests__/audit-fixes.test.ts` (26/26 testes cobrindo auth, fuso, hidratação, medição cronológica, treino e módulo personal + avaliações).
   - Checagem de Tipos Backend: `cd bodysync-api && npx tsc --noEmit` (deve retornar código 0).
 - **Frontend:**
   - Iniciar: `npm start` (Expo Metro) ou `npm run web` (`http://localhost:8081`).

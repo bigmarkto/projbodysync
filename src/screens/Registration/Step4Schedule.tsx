@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  Modal,
   View,
   Text,
   ScrollView,
@@ -8,13 +7,12 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Switch,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRegister } from "./RegisterContext";
-import { StepHeader, FieldInput, ContinueButton } from "./components";
+import { StepHeader, ContinueButton } from "./components";
+import { TimePickerField } from "../../components/DateTimePickerField";
 import { lightColors } from "../../theme/colors";
-import DateTimePicker from "@react-native-community/datetimepicker";
 
 const DAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -33,85 +31,10 @@ interface Props {
   currentStep: number;
 }
 
-const TimeFieldPicker = ({
-  label,
-  value,
-  error,
-  visible,
-  onOpen,
-  onClose,
-  onChange,
-  icon,
-}: {
-  label: string;
-  value: string;
-  error?: string;
-  visible: boolean;
-  onOpen: () => void;
-  onClose: () => void;
-  onChange: (hhmm: string) => void;
-  icon: "time-outline" | "alarm-outline";
-}) => {
-  if (Platform.OS === "web") {
-    return (
-      <FieldInput
-        label={label}
-        placeholder="Ex: 07:30"
-        leftIcon={icon}
-        value={value}
-        onChangeText={onChange}
-        error={error}
-        maxLength={5}
-      />
-    );
-  }
-
-  const parsedDate =
-    /^\d{2}:\d{2}$/.test(value)
-      ? new Date(1970, 0, 1, parseInt(value.split(":")[0], 10), parseInt(value.split(":")[1], 10))
-      : new Date();
-
-  return (
-    <>
-      <Text style={s.sectionLabel}>{label}</Text>
-      <TouchableOpacity style={s.timePickerBtn} onPress={onOpen}>
-        <Ionicons name={icon} size={18} color={lightColors.text.tertiary} style={{ marginRight: 10 }} />
-        <Text style={s.timePickerText}>{value || "Selecione horário (HH:MM)"}</Text>
-      </TouchableOpacity>
-      {!!error && <Text style={s.error}>{error}</Text>}
-      {visible && (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-          <View style={s.modalBackdrop}>
-            <View style={s.modalContainer}>
-              <DateTimePicker
-                mode="time"
-                value={parsedDate}
-                is24Hour
-                display="spinner"
-                onValueChange={(_, selectedDate) => {
-                  onClose();
-                  if (selectedDate) {
-                    const hrs = selectedDate.getHours().toString().padStart(2, "0");
-                    const mins = selectedDate.getMinutes().toString().padStart(2, "0");
-                    onChange(`${hrs}:${mins}`);
-                  }
-                }}
-                onDismiss={onClose}
-              />
-            </View>
-          </View>
-        </Modal>
-      )}
-    </>
-  );
-};
-
 export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props) => {
   const { data, setField } = useRegister();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const [showPicker, setShowPicker] = useState(false);
-  const [showHydrationPicker, setShowHydrationPicker] = useState(false);
 
   const toggleDay = (idx: number) => {
     const days = data.workoutDays.includes(idx)
@@ -195,13 +118,11 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
         </View>
 
         {/* Horário manual (time picker) */}
-        <TimeFieldPicker
+        <TimePickerField
           label="Horário exato"
           value={data.workoutTime}
           error={errors.workoutTime}
-          visible={showPicker}
-          onOpen={() => setShowPicker(true)}
-          onClose={() => setShowPicker(false)}
+          forceLight
           onChange={(timeStr) => {
             setField("workoutTime", timeStr);
             setErrors((e) => ({ ...e, workoutTime: "" }));
@@ -224,13 +145,11 @@ export const Step4Schedule = ({ onNext, onBack, totalSteps, currentStep }: Props
         </View>
 
         {data.hydrationReminder && (
-          <TimeFieldPicker
+          <TimePickerField
             label="Horário do lembrete"
             value={data.hydrationTime}
             error={errors.hydrationTime}
-            visible={showHydrationPicker}
-            onOpen={() => setShowHydrationPicker(true)}
-            onClose={() => setShowHydrationPicker(false)}
+            forceLight
             onChange={(timeStr) => {
               setField("hydrationTime", timeStr);
               setErrors((e) => ({ ...e, hydrationTime: "" }));
@@ -319,27 +238,6 @@ const s = StyleSheet.create({
     color: lightColors.text.secondary,
   },
   presetTextSelected: { color: lightColors.primary },
-  timeInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  timePickerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: lightColors.border,
-    backgroundColor: lightColors.surface,
-    marginBottom: 16,
-  },
-  timePickerText: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: lightColors.text.secondary,
-  },
   hydrationRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -356,17 +254,5 @@ const s = StyleSheet.create({
     fontFamily: "Poppins_500Medium",
     fontSize: 14,
     color: lightColors.text.primary,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    backgroundColor: lightColors.surface,
-    borderRadius: 12,
-    padding: 16,
-    minWidth: '80%',
   },
 });

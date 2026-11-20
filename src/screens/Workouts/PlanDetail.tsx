@@ -33,8 +33,9 @@ const PlanDetail = ({ plan, onStart, onEdit, onBack }: Props) => {
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           onPress={onBack}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={styles.iconBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
         >
           <Ionicons name="arrow-back" size={20} color={colors.text.primary} />
         </TouchableOpacity>
@@ -44,8 +45,9 @@ const PlanDetail = ({ plan, onStart, onEdit, onBack }: Props) => {
         {onEdit ? (
           <TouchableOpacity
             onPress={onEdit}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.iconBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Editar treino"
           >
             <Ionicons name="create-outline" size={20} color={colors.text.primary} />
           </TouchableOpacity>
@@ -146,8 +148,8 @@ const createStyles = (colors: typeof lightColors) =>
       color: colors.text.primary,
     },
     iconBtn: {
-      width: 40,
-      height: 40,
+      width: 44,
+      height: 44,
       borderRadius: 12,
       backgroundColor: colors.card,
       borderWidth: 1,

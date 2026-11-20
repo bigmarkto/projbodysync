@@ -94,6 +94,8 @@ export const TrainerAnalyticsScreen = ({
             style={styles.headerPillBtn}
             onPress={onGoToStudents}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Ver alunos ativos (${analytics.activeStudentsCount})`}
           >
             <Ionicons name="people" size={14} color={colors.primary} style={{ marginRight: 5 }} />
             <Text style={styles.headerPillText}>Alunos ({analytics.activeStudentsCount})</Text>
@@ -120,10 +122,15 @@ export const TrainerAnalyticsScreen = ({
           }
         >
           {!!error && (
-            <View style={styles.errorBanner}>
+            <View style={styles.errorBanner} accessibilityLiveRegion="polite">
               <Ionicons name="alert-circle" size={18} color={colors.error} style={{ marginRight: 8 }} />
               <Text style={styles.errorBannerText}>{error}</Text>
-              <TouchableOpacity onPress={loadData} style={styles.retryBtn}>
+              <TouchableOpacity
+                onPress={loadData}
+                style={styles.retryBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Tentar carregar métricas novamente"
+              >
                 <Text style={styles.retryBtnText}>Tentar</Text>
               </TouchableOpacity>
             </View>
@@ -152,8 +159,8 @@ export const TrainerAnalyticsScreen = ({
             </Text>
           </View>
 
-          {/* Resumo da Consultoria (Métricas movidas da aba Alunos) */}
-          <View style={styles.summaryRow}>
+          {/* Grade 2x3 de KPIs Semanais (legível em 390px) */}
+          <View style={styles.kpiGrid}>
             <View style={styles.kpiCard}>
               <Ionicons name="people-outline" size={20} color={colors.primary} style={{ marginBottom: 6 }} />
               <Text style={styles.kpiVal}>{analytics.activeStudentsCount}</Text>
@@ -173,10 +180,7 @@ export const TrainerAnalyticsScreen = ({
               <Text style={styles.kpiVal}>{analytics.totalPrescriptions}</Text>
               <Text style={styles.kpiLabel}>Prescrições</Text>
             </View>
-          </View>
 
-          {/* Grid de KPIs Semanais */}
-          <View style={styles.kpiGrid}>
             <View style={styles.kpiCard}>
               <Ionicons name="barbell-outline" size={20} color={colors.primary} style={{ marginBottom: 6 }} />
               <Text style={styles.kpiVal}>{analytics.weeklyWorkoutsCount}</Text>
@@ -207,6 +211,8 @@ export const TrainerAnalyticsScreen = ({
                       style={styles.warningLinkArea}
                       onPress={() => onSelectStudentId?.(att.studentId)}
                       activeOpacity={0.75}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Abrir ficha de ${att.name}`}
                     >
                       <View style={styles.warningIcon}>
                         <Ionicons name="alert-circle" size={20} color={colors.error} />
@@ -224,8 +230,10 @@ export const TrainerAnalyticsScreen = ({
                       style={styles.reminderBtn}
                       onPress={() => handleSendReminder(att.name)}
                       activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Enviar lembrete por WhatsApp para ${att.name}`}
                     >
-                      <Ionicons name="logo-whatsapp" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                      <Ionicons name="logo-whatsapp" size={15} color="#FFFFFF" style={{ marginRight: 4 }} />
                       <Text style={styles.reminderBtnText}>Cobrar</Text>
                     </TouchableOpacity>
                   </View>
@@ -326,15 +334,16 @@ const createStyles = (colors: any, isDark: boolean) =>
       color: colors.error,
     },
     retryBtn: {
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 8,
+      minHeight: 44,
+      paddingHorizontal: 14,
+      justifyContent: "center",
+      borderRadius: 10,
       backgroundColor: colors.error,
       marginLeft: 8,
     },
     retryBtnText: {
       fontFamily: "Poppins_600SemiBold",
-      fontSize: 11,
+      fontSize: 12,
       color: "#FFFFFF",
     },
     emptyCard: {
@@ -372,9 +381,9 @@ const createStyles = (colors: any, isDark: boolean) =>
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: colors.primaryLight,
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 20,
+      paddingHorizontal: 14,
+      minHeight: 44,
+      borderRadius: 22,
     },
     headerPillText: {
       fontFamily: "Poppins_600SemiBold",
@@ -400,9 +409,9 @@ const createStyles = (colors: any, isDark: boolean) =>
     },
     heroLabel: {
       fontFamily: "Poppins_600SemiBold",
-      fontSize: 10,
-      color: "rgba(255,255,255,0.8)",
-      letterSpacing: 1,
+      fontSize: 12,
+      color: "rgba(255,255,255,0.92)",
+      letterSpacing: 0.8,
     },
     heroPercentage: {
       fontFamily: "Poppins_700Bold",
@@ -413,34 +422,32 @@ const createStyles = (colors: any, isDark: boolean) =>
     heroBadge: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "rgba(255,255,255,0.2)",
+      backgroundColor: "rgba(255,255,255,0.22)",
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: 12,
     },
     heroBadgeText: {
       fontFamily: "Poppins_600SemiBold",
-      fontSize: 11,
+      fontSize: 12,
       color: "#FFFFFF",
     },
     heroDesc: {
       fontFamily: "Poppins_400Regular",
-      fontSize: 12,
-      color: "rgba(255,255,255,0.9)",
-      lineHeight: 18,
-    },
-    summaryRow: {
-      flexDirection: "row",
-      gap: 10,
-      marginBottom: 10,
+      fontSize: 13,
+      color: "rgba(255,255,255,0.94)",
+      lineHeight: 19,
     },
     kpiGrid: {
       flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
       gap: 10,
       marginBottom: 18,
     },
     kpiCard: {
-      flex: 1,
+      width: "47.5%",
+      flexGrow: 1,
       backgroundColor: colors.surface,
       borderRadius: 16,
       borderWidth: 1,
@@ -450,13 +457,13 @@ const createStyles = (colors: any, isDark: boolean) =>
     },
     kpiVal: {
       fontFamily: "Poppins_700Bold",
-      fontSize: 16,
+      fontSize: 20,
       color: colors.text.primary,
     },
     kpiLabel: {
-      fontFamily: "Poppins_400Regular",
-      fontSize: 10,
-      color: colors.text.tertiary,
+      fontFamily: "Poppins_500Medium",
+      fontSize: 12,
+      color: colors.text.secondary,
       marginTop: 2,
     },
     sectionTitle: {
@@ -482,12 +489,13 @@ const createStyles = (colors: any, isDark: boolean) =>
       flex: 1,
       flexDirection: "row",
       alignItems: "center",
+      minHeight: 44,
       gap: 12,
     },
     warningIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       backgroundColor: isDark ? "rgba(239, 68, 68, 0.2)" : "#FEE2E2",
       alignItems: "center",
       justifyContent: "center",
@@ -499,16 +507,17 @@ const createStyles = (colors: any, isDark: boolean) =>
     },
     warningReason: {
       fontFamily: "Poppins_400Regular",
-      fontSize: 11,
+      fontSize: 12,
       color: colors.error,
     },
     reminderBtn: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: colors.accent,
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 10,
+      justifyContent: "center",
+      backgroundColor: "#059669",
+      paddingHorizontal: 14,
+      minHeight: 44,
+      borderRadius: 12,
     },
     reminderBtnText: {
       fontFamily: "Poppins_600SemiBold",
@@ -523,6 +532,7 @@ const createStyles = (colors: any, isDark: boolean) =>
       borderWidth: 1,
       borderColor: colors.border,
       padding: 12,
+      minHeight: 64,
       marginBottom: 10,
       gap: 10,
     },
@@ -554,7 +564,7 @@ const createStyles = (colors: any, isDark: boolean) =>
     },
     rankMeta: {
       fontFamily: "Poppins_400Regular",
-      fontSize: 11,
+      fontSize: 12,
       color: colors.text.secondary,
     },
     rankProgress: {

@@ -36,7 +36,6 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <NavigationContainer>
-            <StatusBar backgroundColor="#F96D10" barStyle="light-content" />
             <RootNavigator />
           </NavigationContainer>
         </AuthProvider>

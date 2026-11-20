@@ -16,6 +16,7 @@ import { useTabFocus } from "../../context/TabFocusContext";
 import { useApi } from "../../hooks/useApi";
 import { lightColors } from "../../theme/colors";
 import { ConfirmModal } from "../../components/ConfirmModal";
+import { AiBotAvatar } from "../../components/AiBotAvatar";
 import {
   EditablePlan,
   PlanDetail,
@@ -328,11 +329,19 @@ const WorkoutsScreen = () => {
                 style={styles.aiBtn}
                 onPress={onGenerate}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Gerar plano personalizado com Inteligência Artificial"
               >
-                <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+                <AiBotAvatar size={26} state="idle" variant="inverse" />
                 <Text style={styles.aiBtnText}>Gerar plano com IA</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.manualBtn} onPress={onCreateManual} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={styles.manualBtn}
+                onPress={onCreateManual}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Criar plano de treino manual"
+              >
                 <Ionicons name="add" size={18} color={colors.primary} />
                 <Text style={styles.manualBtnText}>Criar plano manual</Text>
               </TouchableOpacity>
@@ -379,11 +388,11 @@ const WorkoutsScreen = () => {
           {/* Lista de planos */}
           {plans.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="clipboard-outline" size={44} color={colors.text.tertiary} />
+              <AiBotAvatar size={56} state="idle" variant="primary" />
               <Text style={styles.emptyTitle}>Nenhum plano ainda</Text>
               {canCreate && (
                 <Text style={styles.emptySub}>
-                  Gere um plano com IA ou crie seu próprio treino personalizado.
+                  Gere um plano com o BodySync AI ou crie seu próprio treino personalizado.
                 </Text>
               )}
             </View>
@@ -418,8 +427,9 @@ const WorkoutsScreen = () => {
                 {!plan.createdByTrainerId && (
                   <TouchableOpacity
                     onPress={() => onDelete(plan)}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     style={styles.trashBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Excluir plano ${plan.name}`}
                   >
                     <Ionicons name="trash-outline" size={18} color={colors.text.tertiary} />
                   </TouchableOpacity>
@@ -688,8 +698,11 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       marginTop: 2,
     },
     trashBtn: {
-      padding: 6,
-      borderRadius: 8,
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 10,
     },
   });
 

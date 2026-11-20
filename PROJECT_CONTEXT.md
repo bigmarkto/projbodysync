@@ -1,128 +1,109 @@
-# 📋 BodySync - Contexto do Projeto & Registro de Decisões
+# 📋 BodySync - Contexto Geral do Projeto & Registro de Decisões
 
 > **Para novos chats e assistentes de IA:**  
-> Leia este documento antes de realizar qualquer alteração no código. Ele resume a arquitetura, regras de negócio, decisões técnicas de alto impacto e o histórico de auditorias e redesigns já homologados no projeto.
+> Leia este documento antes de realizar qualquer alteração no código. Ele consolida a arquitetura completa do projeto (App Mobile/Web, Backend Express, Supabase Edge Functions, Build Android APK, Módulo Personal Trainer, Auditorias WCAG/UI e Suítes de Teste) e substitui a necessidade de consultar chats antigos.
 
 ---
 
-## 1. Visão Geral & Escopo
+## 1. Visão Geral & Stack Tecnológico
 
-- **O que é:** O **BodySync** é um aplicativo mobile de treino, saúde e hidratação com backend REST API integrado a banco relacional.
-- **Ambiente & Contexto:** Projeto de faculdade. O objetivo é alta qualidade, código enxuto, performance fluida e estabilidade, **sem over-engineering** (seguir a diretriz *Ponytail: Lazy Senior Dev* — a melhor linha de código é a que não precisou ser escrita).
-- **Stack Tecnológico:**
-  - **Frontend:** React Native (Expo SDK 54), TypeScript, `@expo/vector-icons`, `react-native-safe-area-context`, `react-native-reanimated`.
-  - **Backend:** Node.js, Express, TypeScript, `pg.Pool`, `compression`, `bcryptjs`, `jsonwebtoken`.
+- **O que é:** O **BodySync** é um aplicativo de treino, saúde, hidratação e consultoria de Personal Trainer com backend REST API e integração PostgreSQL/Supabase.
+- **Diretriz de Engenharia:** Alta qualidade, código enxuto, performance fluida e estabilidade, **sem over-engineering** (*Ponytail: Lazy Senior Dev* — a melhor linha de código é a que não precisou ser escrita).
+- **Stack:**
+  - **Frontend:** React Native (Expo SDK 54 + projeto nativo `android/`), TypeScript, `@expo/vector-icons`, `react-native-safe-area-context`, `react-native-reanimated`, `@react-native-async-storage/async-storage`.
+  - **Backend Local/Express:** Node.js, Express, TypeScript, `pg.Pool`, `compression`, `bcryptjs`, `jsonwebtoken`.
+  - **Backend Cloud (APK):** Supabase Cloud Edge Functions em Deno (`supabase/functions/api/*.ts`) servindo as mesmas rotas REST para o APK Android sem depender de IP local.
   - **Banco de Dados:** Supabase PostgreSQL (`aws-1-sa-east-1.pooler.supabase.com:6543`).
-  - **Testes:** Node.js native test runner (`node --test`).
+  - **Testes:** Node.js native test runner (`node --test` / `npx tsx --test`).
 
 ---
 
-## 2. Decisões Arquiteturais & Auditorias de Código
+## 2. Mapa das Branches & Estado do Repositório
 
-### A. Autenticação & Segurança
-- **Token Refresh Lock:** Em [`src/context/AuthContext.tsx`](file:///c:/dev/projbodysync/src/context/AuthContext.tsx), usamos `refreshPromiseRef` como single-flight lock. Chamadas concorrentes que encontram `401 Unauthorized` aguardam o mesmo refresh sem disparar requisições duplicadas.
-- **Hash de Tokens de Recuperação:** No [`bodysync-api/src/modules/auth/auth.service.ts`](file:///c:/dev/projbodysync/bodysync-api/src/modules/auth/auth.service.ts), tokens de redefinição de senha nunca são armazenados puros no banco; usamos `crypto.createHash('sha256')`.
-- **Prevenção de SQL Injection em Perfis:** Em [`user-profile.service.ts`](file:///c:/dev/projbodysync/bodysync-api/src/modules/user-profile/user-profile.service.ts), usamos `PROFILE_FIELD_MAP` como whitelist restrita de colunas permitidas para `UPDATE`.
-- **Lock contra Concorrência (TOCTOU):** No [`workout.service.ts`](file:///c:/dev/projbodysync/bodysync-api/src/modules/workout/workout.service.ts), validações de limite de planos por assinatura usam `SELECT ... FOR UPDATE` dentro de `BEGIN...COMMIT`.
-- **Hardening de Cadastro & Pagamento Simulado:** Em [`auth.controller.ts`](bodysync-api/src/modules/auth/auth.controller.ts), `POST /api/auth/register` aceita apenas perfis `comum` ou `professor` (bloqueia auto-cadastro como `admin` com `403`) e cria contas sempre no plano inicial `free`. Planos pagos (`premium` para aluno; `basic` para personal) passam obrigatoriamente pela tela simulada [`PaymentScreen.tsx`](src/screens/Registration/PaymentScreen.tsx) -> `POST /api/payment/subscribe`, validado por [`isSubscriptionAllowedForRole`](bodysync-api/src/modules/payment/payment.routes.ts).
-- **Fluxo Personalizado por Perfil no Onboarding:** No [`RegisterScreen.tsx`](src/screens/Registration/RegisterScreen.tsx), contas `comum` percorrem 7 etapas e contas `professor` percorrem 3 etapas (`Step1PersonalData` -> `Step2Subscription` -> `Step7Confirmation`), ambos com `PaymentScreen` ao escolher plano pago e auto-login direto ao concluir. Trocar o perfil em `Step1PersonalData` limpa `subscriptionType` selecionado.
+- **`master`:** Branch principal de produção/entrega no GitHub.
+- **`feat/personal-trainer`:** Contém o módulo completo de Personal Trainer, prescrições, avaliações físicas (`003`–`006`), `PROJECT_CONTEXT.md` e (no working tree local) a auditoria de UI/WCAG + `AiBotAvatar`.
+- **`build_android_apk`:** Ramificada de `feat/personal-trainer` (`2a7eb2c`). Contém o projeto nativo `android/` (Gradle/APK), `metro.config.js`, `supabase/functions/api/*`, fallback de API em `src/config/api.ts` (`fetchWithApiFallback`) e as suítes de teste (`modules-suite.test.ts`, `frontend-logic.test.ts`, `android-build.test.mjs`).
+- **Arquivos acadêmicos (não versionar na `master`):** `avaliacao-ihc-bodysync.html`, `bodySync_Avaliacao_IHC_SUS_UEQ.pdf`, `generate_pdf.py` (material de IHC/SUS/UEQ) e `comparacao-branches.html` (painel temporário de revisão).
+
+---
+
+## 3. Decisões Arquiteturais & Regras de Negócio
+
+### A. Autenticação, Segurança & Onboarding
+- **Token Refresh Lock:** Em [`src/context/AuthContext.tsx`](src/context/AuthContext.tsx), `refreshPromiseRef` atua como single-flight lock: chamadas concorrentes com `401 Unauthorized` aguardam o mesmo refresh sem disparar requisições duplicadas. No `logout`, envia `keepalive: true`.
+- **Hash de Tokens de Recuperação:** No [`bodysync-api/src/modules/auth/auth.service.ts`](bodysync-api/src/modules/auth/auth.service.ts), tokens de redefinição usam `crypto.createHash('sha256')` antes de persistir no banco.
+- **Prevenção de SQL Injection em Perfis:** Em [`user-profile.service.ts`](bodysync-api/src/modules/user-profile/user-profile.service.ts), `PROFILE_FIELD_MAP` define a whitelist estrita de colunas permitidas para `UPDATE`.
+- **Lock contra Concorrência (TOCTOU):** Em [`workout.service.ts`](bodysync-api/src/modules/workout/workout.service.ts), limites de planos por assinatura usam `SELECT ... FOR UPDATE` dentro de `BEGIN...COMMIT`.
+- **Hardening de Cadastro & Pagamento Simulado:** `POST /api/auth/register` aceita apenas `comum` ou `professor` (bloqueia `admin` com `403`) e inicia sempre no plano `free`. Planos pagos (`premium` para aluno; `basic` para personal) passam por [`PaymentScreen.tsx`](src/screens/Registration/PaymentScreen.tsx) -> `POST /api/payment/subscribe`, validado por `isSubscriptionAllowedForRole`.
+- **Onboarding por Perfil:** Em [`RegisterScreen.tsx`](src/screens/Registration/RegisterScreen.tsx), contas `comum` percorrem 7 etapas e contas `professor` percorrem 3 etapas (`Step1PersonalData` -> `Step2Subscription` -> `Step7Confirmation`), com auto-login ao concluir. Trocar o perfil em `Step1PersonalData` limpa `subscriptionType`.
 
 ### B. Fusos Horários e Datas
-- **Regra de Fuso:** No Brasil (`America/Sao_Paulo`), datas de hidratação, pesagem e sessões de treino nunca usam `new Date().toISOString().slice(0, 10)` sem conversão, pois após as 21h UTC causava salto de dia. No backend usamos âncora UTC-noon (`T12:00:00.000Z`), `Intl.DateTimeFormat` (`dateKey`) e validação estrita [`isValidIsoDate`](bodysync-api/src/modules/session/session.service.ts); no frontend datas `YYYY-MM-DD` são parseadas/formatadas localmente por [`parseDateOnlyLocal` / `formatDateBR`](src/components/DateTimePickerField.tsx).
-- **Pesagens Retroativas:** Em [`measurement.service.ts`](bodysync-api/src/modules/measurement/measurement.service.ts), `POST /api/measurements` valida `measuredAt` (`400` se inválido/futuro) e sincroniza `user_profiles.weight_kg` apenas pela medição cronologicamente mais recente (`ORDER BY measured_at DESC, id DESC`).
+- **Regra de Fuso (`America/Sao_Paulo`):** Datas de hidratação, pesagem e sessões nunca usam `new Date().toISOString().slice(0, 10)` sem conversão (evita salto de dia após 21h UTC). O backend usa âncora UTC-noon (`T12:00:00.000Z`), `Intl.DateTimeFormat` (`dateKey`) e validação estrita `isValidIsoDate`; o frontend usa [`parseDateOnlyLocal` / `formatDateBR`](src/components/DateTimePickerField.tsx).
+- **Pesagens Retroativas:** `POST /api/measurements` valida `measuredAt` (`400` se inválido/futuro) e sincroniza `user_profiles.weight_kg` apenas pela medição cronologicamente mais recente (`ORDER BY measured_at DESC, id DESC`).
 
 ### C. Dependências Limpas
-- Foram removidas 13 dependências desnecessárias do `package.json` (`@gluestack-*`, `react-native-paper`, `@react-navigation/bottom-tabs`, etc.). Não adicione novas bibliotecas para funcionalidades que o React Native nativo já oferece.
+- 13 dependências desnecessárias foram removidas do `package.json` (`@gluestack-*`, `react-native-paper`, `@react-navigation/bottom-tabs`, etc.). Não adicionar bibliotecas para recursos que o React Native nativo já entrega.
 
 ### D. Banco de Dados & Supabase Hardening (Migração 002)
-- **Isolamento de PostgREST e Ativação de RLS:**
-  - O aplicativo mobile conecta exclusivamente via API Express (`bodysync-api`), nunca acessando a API REST do Supabase (`/rest/v1/*`) diretamente.
-  - Para fechar a brecha de segurança onde qualquer usuário da internet com a chave anônima pública podia consultar/apagar tabelas, todos os privilégios foram revogados das roles públicas (`REVOKE ALL ON ALL TABLES/SEQUENCES/ROUTINES IN SCHEMA public FROM anon, authenticated`).
-  - RLS (Row Level Security) ativado em todas as 13 tabelas do schema `public`.
-  - A API Express conecta via pool `pg` como o usuário proprietário `postgres.fhbcihntnojnrdxhtjor` (que possui `rolbypassrls: true`), garantindo que todas as consultas do backend continuem funcionando com transparência total.
-- **Cobertura de Chaves Estrangeiras:**
-  - Todas as 11 Foreign Keys do banco receberam índices B-tree dedicados (`idx_*`), eliminando Sequential Scans e bloqueios de tabela em operações de exclusão em cascata (`ON DELETE CASCADE`).
-- **Índices Compostos de Alto Desempenho:**
-  - Adicionados índices compostos casando filtros e ordenações da API:
-    - `workout_sessions (user_id, finished_at DESC)`: acelera estatísticas e histórico de treinos.
-    - `body_measurements (user_id, measured_at ASC)`: acelera o gráfico e listagem de evolução física.
-    - `plan_exercises (plan_id, order_index ASC)`: acelera a montagem do detalhe de planos de treino.
-- **Remoção de Índices Redundantes:**
-  - Foram removidos 3 índices secundários manuais (`idx_hydration_logs_user_date`, `idx_reset_tokens_token`, `idx_user_profiles_user_id`) que duplicavam constraints `UNIQUE` pré-existentes, poupando I/O de escrita e espaço em disco.
-- **Segurança em Funções e Triggers:**
-  - A função `update_updated_at_column()` foi recriada com `SECURITY INVOKER` e `SET search_path = ''` para mitigar vulnerabilidades de injeção de caminho de busca (Linter 0011).
-  - Foi adicionado o gatilho `update_hydration_logs_updated_at` na tabela `hydration_logs`.
-- **Decisão Arquitetural sobre `users` vs `user_profiles`:**
-  - Identificada a duplicação histórica de 14 atributos físicos/comportamentais em ambas as tabelas.
-  - **Decisão:** Manter retrocompatibilidade total na Fase 1 (nenhuma coluna foi apagada da tabela `users` para não quebrar queries de cadastro e peso). A consolidação para manter `users` puramente como tabela de credenciais e `user_profiles` como fonte única dos atributos físicos fica planejada para uma refatoração conjunta com TypeScript.
-- **Automação de Migrações:**
-  - Script runner em [`bodysync-api/src/scripts/run-migration.ts`](file:///c:/dev/projbodysync/bodysync-api/src/scripts/run-migration.ts) executável via `npm --prefix bodysync-api run migrate`.
+- **Isolamento de PostgREST & RLS:** Todos os privilégios foram revogados de `anon` e `authenticated` (`REVOKE ALL ON ALL TABLES/SEQUENCES/ROUTINES IN SCHEMA public FROM anon, authenticated`), e RLS foi ativado em todas as tabelas do schema `public`. O acesso ocorre exclusivamente pela API Express (`bodysync-api`) ou pelas Edge Functions (`supabase/functions/api/`).
+- **Índices:** Todas as 11 Foreign Keys possuem índices B-tree dedicados (`idx_*`), além de índices compostos em `workout_sessions (user_id, finished_at DESC)`, `body_measurements (user_id, measured_at ASC)` e `plan_exercises (plan_id, order_index ASC)`. 3 índices redundantes sobre constraints `UNIQUE` foram removidos.
+- **Funções e Triggers:** `update_updated_at_column()` usa `SECURITY INVOKER` e `SET search_path = ''`; trigger `update_hydration_logs_updated_at` adicionado em `hydration_logs`.
+- **Legado `users` vs `user_profiles`:** Mantida retrocompatibilidade na Fase 1 (colunas não removidas de `users`).
+- **Runner de Migrações:** `npm --prefix bodysync-api run migrate` ([`run-migration.ts`](bodysync-api/src/scripts/run-migration.ts)).
 
-### E. Módulo Personal Trainer, Prescrições & Regras de Negócio (Migrações 003–006)
-- **Separação Estrita de Papéis (`RootNavigator` & Guards):**
-  - Removidos placeholders de troca de papel (`RolePreviewContext`, `mockTrainerData`). A navegação respeita `user.role` real vindo da API: `'professor'` entra no [`TrainerMainFlow`](src/screens/Trainer/TrainerMainFlow.tsx) (aba inicial `Métricas`, seguida de `Alunos` e `Ajustes`, com gatilho leve de atualização entre abas); `'comum'` entra no app do aluno.
-  - Endpoints de consultoria (`/api/trainer/profile`, `/students`, `/students/:studentId`, `/students/:studentId/evaluations`, `/evaluations/:evaluationId`, `/prescribe`, `/plans/:planId`, `/analytics`) são protegidos por `requireProfessor`.
-- **Vínculo Personal <-> Aluno (`trainer_students`):**
-  - Cada treinador recebe um código mestre único `BS-XXXX` (`student_id IS NULL`, garantido pelos índices únicos parciais das migrações `004` e `005` com retry contra colisão `23505`).
-  - Apenas usuários `role = 'comum'` podem conectar-se como alunos (`connectStudent` rejeita `professor`/`admin` com `403`), e o desvínculo (`DELETE /api/trainer/students/:studentId`) funciona de forma mútua.
-  - O compartilhamento do código usa [`shareTrainerInvite`](src/screens/Trainer/trainerService.ts) (Share nativo no Mobile / fallback com cópia automática da mensagem na Web desktop) + [`openWhatsAppInvite`](src/screens/Trainer/trainerService.ts), acessível no modal de `TrainerHomeScreen` e em `Ajustes` (`SettingsScreen`) do Personal.
-- **Avaliações Físicas & Parecer Técnico (`006_student_evaluations.sql`):**
-  - Tabela `student_evaluations` com RLS ativado, revogação para `anon/authenticated`, nota `1..5`, parecer obrigatório e métricas corporais opcionais (`weight_kg`, `body_fat_pct`, `chest_cm`, `waist_cm`, `arm_cm`, `thigh_cm`).
-  - O Personal cria/exclui avaliações na aba `Avaliações` de `StudentDetailScreen`; o aluno visualiza o histórico em modo somente leitura via `GET /api/trainer/my-evaluations` em [`ProgressScreen.tsx`](src/screens/Progress/ProgressScreen.tsx), compartilhando o componente [`EvaluationCard.tsx`](src/components/EvaluationCard.tsx).
-- **Prescrição Fiel & Catálogo Completo (880 exercícios):**
-  - Em [`TrainerPrescribeScreen.tsx`](src/screens/Trainer/TrainerPrescribeScreen.tsx), a seleção de catálogo consulta `GET /api/exercises` no servidor (`search` com debounce, filtro por `category` via `/exercises/categories`, `limit=50` e paginação `"Carregar mais"`), superando o limite padrão de 20 itens por página.
-  - A migração `005_trainer_plan_rest_and_fk.sql` adicionou `rest_seconds` (`10..600`, padrão `60`) em `plan_exercises`. O descanso prescrito é salvo em [`prescribeWorkout`](bodysync-api/src/modules/trainer/trainer.service.ts), exibido com a categoria real do exercício na `StudentDetailScreen` e no `PlanDetail`, e aplicado no cronômetro entre séries do `WorkoutPlayer`.
-- **Permissões e Limite Free nos Treinos Prescritos:**
-  - Planos com `created_by_trainer_id IS NOT NULL` **não consomem** o limite de 2 planos gratuitos do aluno em [`workout.service.ts`](bodysync-api/src/modules/workout/workout.service.ts).
-  - O aluno vê o selo `Personal`, mas **não pode editar nem excluir** treinos prescritos (`403 ForbiddenPlanError` na API + botões substituídos por cadeado/ocultos na UI).
-  - Apenas o próprio Personal pode remover fichas que prescreveu em `StudentDetailScreen` (`DELETE /api/trainer/plans/:planId`), com `workout_sessions.plan_id` configurado como `ON DELETE SET NULL` na migração `005` para preservar o histórico de treinos executados.
-- **Métricas & Janela Semanal Unificada:**
-  - Os indicadores gerais (`Alunos Ativos`, `Treinaram Hoje`, `Prescrições`) ficam consolidados exclusivamente na aba `Métricas` ([`TrainerAnalyticsScreen.tsx`](src/screens/Trainer/TrainerAnalyticsScreen.tsx)), deixando `TrainerHomeScreen` focada na lista/busca/filtros de alunos.
-  - [`fetchStudentsWithSessionTotals`](bodysync-api/src/modules/trainer/trainer.service.ts) consolida a janela de 7 dias no fuso `America/Sao_Paulo` em uma única CTE SQL reaproveitada por `listStudents` e `getAnalytics`, e `getStudentDetail` conta frequência semanal diretamente no SQL (sem limite de 15 linhas).
-  - Alunos sem nenhuma sessão ainda usam `joinedAt` para cálculo de inatividade (`attentionStudents`), recebendo `neverTrained: true` se vinculados há 4+ dias sem treinar (sem falso alerta de "7 dias inativo" no cadastro).
+### E. Módulo Personal Trainer, Prescrições & Avaliações (Migrações 003–006)
+- **Separação Estrita de Papéis (`RootNavigator` & Guards):** Sem troca de papel mockada. `'professor'` entra no [`TrainerMainFlow`](src/screens/Trainer/TrainerMainFlow.tsx) (abas `Métricas`, `Alunos`, `Ajustes`); `'comum'` entra no `TabNavigator` do aluno. Endpoints `/api/trainer/*` são protegidos por `requireProfessor`.
+- **Vínculo Personal <-> Aluno (`trainer_students`):** Código único `BS-XXXX` por treinador (migrações `004`/`005`). Apenas `role = 'comum'` pode vincular-se (`403` para `professor`/`admin`). Desvínculo mútuo via `DELETE /api/trainer/students/:studentId`. Compartilhamento via [`shareTrainerInvite`](src/screens/Trainer/trainerService.ts) e [`openWhatsAppInvite`](src/screens/Trainer/trainerService.ts).
+- **Avaliações Físicas (`006_student_evaluations.sql`):** Tabela `student_evaluations` com nota `1..5`, parecer obrigatório e medidas opcionais (`weight_kg`, `body_fat_pct`, `chest_cm`, `waist_cm`, `arm_cm`, `thigh_cm`). Personal cria/exclui na `StudentDetailScreen`; aluno visualiza em modo leitura via `GET /api/trainer/my-evaluations` na [`ProgressScreen.tsx`](src/screens/Progress/ProgressScreen.tsx) usando [`EvaluationCard.tsx`](src/components/EvaluationCard.tsx).
+- **Prescrição Fiel & Catálogo Completo (880 exercícios):** [`TrainerPrescribeScreen.tsx`](src/screens/Trainer/TrainerPrescribeScreen.tsx) consulta `GET /api/exercises` com `search` (debounce), filtro por `category`, `limit=50` e paginação `"Carregar mais"`. Migração `005` adicionou `rest_seconds` (`10..600`, padrão `60`) em `plan_exercises`, respeitado no `WorkoutPlayer`.
+- **Permissões & Limite Free:** Planos com `created_by_trainer_id IS NOT NULL` não consomem o limite de 2 planos gratuitos do aluno. Aluno vê o selo `Personal` e não pode editar/excluir (`403 ForbiddenPlanError`). `workout_sessions.plan_id` usa `ON DELETE SET NULL`.
+- **Métricas & Janela Semanal Unificada:** [`TrainerAnalyticsScreen.tsx`](src/screens/Trainer/TrainerAnalyticsScreen.tsx) concentra os KPIs (`Alunos Ativos`, `Treinaram Hoje`, `Prescrições`). `fetchStudentsWithSessionTotals` consolida a janela de 7 dias (`America/Sao_Paulo`) em CTE SQL única; alunos sem sessões usam `joinedAt` (`neverTrained: true` após 4+ dias).
+
+### F. Android APK & Supabase Cloud Edge Functions (`build_android_apk`)
+- **Projeto Nativo Android:** Pasta `android/` configurada para build Gradle do APK (`com.bodysync.app`), com `metro.config.js` e `index.js`.
+- **API em Nuvem (Edge Functions):** [`supabase/functions/api/`](supabase/functions/api/index.ts) replica os módulos (`auth.ts`, `exercise.ts`, `hydration.ts`, `measurement.ts`, `payment.ts`, `profile.ts`, `session.ts`, `trainer.ts`, `workout.ts`, `security.ts`, `db.ts`) no Deno/Supabase Cloud para o APK funcionar em dispositivos reais sem servidor local.
+- **Resiliência de Rede:** [`src/config/api.ts`](src/config/api.ts) expõe `fetchWithApiFallback`, usado por `AuthContext`, `useApi`, `useRegister` e `LoginScreen`.
 
 ---
 
-## 3. Padrões de UI/UX & Temas
+## 4. Padrões de UI/UX, Acessibilidade (WCAG) & Temas
 
-- **Dual Theme Reativo:**
-  - Definido em [`src/theme/colors.ts`](file:///c:/dev/projbodysync/src/theme/colors.ts) e distribuído via [`src/context/ThemeProvider.tsx`](file:///c:/dev/projbodysync/src/context/ThemeProvider.tsx).
-  - Tokens principais:
-    - **Dark:** Fundo `#0B0F17`, Superfície/Cards `#161F2E`, Variação `#1E293B`, Primário `#F97316`, Texto `#F8FAFC`.
-    - **Light:** Fundo `#F8FAFC`, Superfície/Cards `#FFFFFF`, Variação `#F1F5F9`, Primário `#F97316`, Texto `#0F172A`.
-- **Navegação & TabBar Flutuante:**
-  - A barra em [`src/navigation/TabNavigator.tsx`](file:///c:/dev/projbodysync/src/navigation/TabNavigator.tsx) flutua acima da borda com cantos arredondados (`borderRadius: 24`).
-  - **Atenção:** Todas as telas roláveis com abas ativas DEVEM usar `paddingBottom: insets.bottom + 100` no `contentContainerStyle` para evitar que conteúdos do rodapé fiquem escondidos atrás da TabBar.
-- **Players de Exercício:**
-  - `WorkoutPlayer.tsx` e `HiitPlayer.tsx` rodam em tela cheia com timers circulares de alto contraste e botões de toque com altura mínima de 52px.
-  - No `WorkoutPlayer.tsx`, a fase de descanso entre séries respeita `current.restSeconds` (fallback `45s`) e conta com um anel giratório 360° animado via `Animated.loop` e `useNativeDriver: true` (idêntico à estética do `PreparingScreen.tsx`), envolvendo o círculo do cronômetro.
-- **Compatibilidade Cross-Platform (Web + Mobile):**
-  - Substituímos `Alert.alert` com botões de ação pelo componente reutilizável [`ConfirmModal.tsx`](src/components/ConfirmModal.tsx) (usado em exclusões, interrupção de treino, saída da conta em `SettingsScreen` e ações na `StudentDetailScreen`).
-  - Seletores de data e hora usam o componente unificado [`DateTimePickerField.tsx`](src/components/DateTimePickerField.tsx) (input HTML nativo `date`/`time` no Web adaptado ao tema, `@react-native-community/datetimepicker` nativo no Android e `spinner` com botões `Cancelar/Confirmar` no iOS), aplicado no cadastro (`Step1PersonalData`, `Step4Schedule`), pesagem em `ProgressScreen` e criação de avaliações.
-  - Faixas horizontais de filtros e abas (`TrainerHomeScreen` e as 4 abas em `StudentDetailScreen`) usam [`HorizontalScrollStrip.tsx`](src/components/HorizontalScrollStrip.tsx) para sinalizar overflow com *peek* e setas dinâmicas.
-  - Evitar `<TouchableOpacity>` aninhado dentro de outro `<TouchableOpacity>` (cards de aluno e alerta no painel do Personal usam `<View>` externa e cliques separados).
-  - Abas do aluno compartilham [`TabFocusContext.tsx`](src/context/TabFocusContext.tsx) no `TabNavigator` para recarregar Home, Treinos e Progresso ao alternar de aba; em [`AuthContext.tsx`](src/context/AuthContext.tsx), `logout` envia `keepalive: true`.
+- **Dual Theme Reativo & Persistente:**
+  - Tokens ajustados para contraste WCAG em [`src/theme/colors.ts`](src/theme/colors.ts) (Dark `#0B0F17` / `#151D2A`, Light `#F8FAFC` / `#FFFFFF`, Primário `#F97316`).
+  - [`src/context/ThemeProvider.tsx`](src/context/ThemeProvider.tsx) persiste a preferência em `AsyncStorage` (`@bodysync:theme`) e expõe `reduceMotion` via `AccessibilityInfo`.
+  - [`src/navigation/RootNavigator.tsx`](src/navigation/RootNavigator.tsx) sincroniza `StatusBar` com `colors.background` e `isDark`.
+- **Navegação & Alvos de Toque:**
+  - [`src/navigation/TabNavigator.tsx`](src/navigation/TabNavigator.tsx) usa `useWindowDimensions`, `accessibilityRole="tab"`, `accessibilityState={{ selected }}` e alvos mínimos (`minHeight: 44/48`). Telas roláveis com abas ativas devem usar `paddingBottom: insets.bottom + 100`.
+  - [`TabFocusContext.tsx`](src/context/TabFocusContext.tsx) recarrega Home, Treinos e Progresso ao alternar abas.
+- **Players & Componentes Cross-Platform:**
+  - `WorkoutPlayer.tsx` e `HiitPlayer.tsx` em tela cheia; descanso do `WorkoutPlayer` respeita `current.restSeconds` (fallback `45s`) com anel giratório 360° (`useNativeDriver: true`).
+  - [`ConfirmModal.tsx`](src/components/ConfirmModal.tsx) substitui `Alert.alert` com botões de ação.
+  - [`DateTimePickerField.tsx`](src/components/DateTimePickerField.tsx) unifica seleção de data/hora (Web HTML nativo, Android nativo, iOS spinner).
+  - [`HorizontalScrollStrip.tsx`](src/components/HorizontalScrollStrip.tsx) sinaliza overflow horizontal com *peek* e setas.
+  - [`AiBotAvatar.tsx`](src/components/AiBotAvatar.tsx) + [`aiBotState.ts`](src/components/aiBotState.ts): avatar/estado animado para assistente.
+  - Evitar `<TouchableOpacity>` aninhado dentro de outro `<TouchableOpacity>`.
 
 ---
 
-## 4. Otimizações de Performance Aplicadas
+## 5. Otimizações de Performance
 
-1. **Optimistic Updates:** No [`src/components/HydrationCard.tsx`](file:///c:/dev/projbodysync/src/components/HydrationCard.tsx), toques em `+250ml` ou `+500ml` atualizam visualmente o estado na hora (0ms), revertendo se a rede falhar.
-2. **Timeout Resiliente:** Em [`src/hooks/useApi.ts`](file:///c:/dev/projbodysync/src/hooks/useApi.ts), requisições têm timeout de 10s via `AbortController`, prevenindo congelamentos de tela.
-3. **Compressão GZIP:** No [`bodysync-api/src/app.ts`](file:///c:/dev/projbodysync/bodysync-api/src/app.ts), o middleware `compression()` reduz o peso dos payloads JSON em até 70%.
-4. **Skeleton Loading:** [`src/components/Skeleton.tsx`](file:///c:/dev/projbodysync/src/components/Skeleton.tsx) cria placeholders pulsantes durante o carregamento da Home.
-5. **Debounce & Virtualização:** O [`ExercisePicker.tsx`](file:///c:/dev/projbodysync/src/screens/Workouts/ExercisePicker.tsx) usa debounce de 300ms no input e `FlatList` para paginação de exercícios.
-6. **YAGNI (Descartes Conscientes):** Não instalar Redis, RabbitMQ/BullMQ, OpenTelemetry, microsserviços ou CDNs pagas.
+1. **Optimistic Updates:** [`HydrationCard.tsx`](src/components/HydrationCard.tsx) atualiza `+250ml`/`+500ml` imediatamente (0ms), revertendo em erro de rede.
+2. **Timeout Resiliente:** [`useApi.ts`](src/hooks/useApi.ts) aplica timeout de 10s via `AbortController`.
+3. **Compressão GZIP:** `compression()` em [`bodysync-api/src/app.ts`](bodysync-api/src/app.ts).
+4. **Skeleton Loading:** [`Skeleton.tsx`](src/components/Skeleton.tsx) na Home.
+5. **Debounce & Virtualização:** [`ExercisePicker.tsx`](src/screens/Workouts/ExercisePicker.tsx) com debounce de 300ms e `FlatList`.
+6. **YAGNI:** Sem Redis, RabbitMQ/BullMQ, OpenTelemetry ou microsserviços.
 
 ---
 
-## 5. Como Rodar e Testar
+## 6. Como Rodar e Testar
 
 - **Backend:**
-  - Iniciar: `cd bodysync-api && npm run dev` (Porta 3000; no Windows também via `node node_modules/tsx/dist/cli.mjs src/server.ts`).
-  - Executar Migrações SQL: `npm --prefix bodysync-api run migrate -- 006_student_evaluations.sql` (migrações atuais: `001` a `006`).
-  - Testes completos da API: `cd bodysync-api && npx tsx --test src/__tests__/trainer.test.ts src/__tests__/audit-fixes.test.ts` (26/26 testes cobrindo auth, fuso, hidratação, medição cronológica, treino e módulo personal + avaliações).
-  - Checagem de Tipos Backend: `cd bodysync-api && npx tsc --noEmit` (deve retornar código 0).
-- **Frontend:**
-  - Iniciar: `npm start` (Expo Metro) ou `npm run web` (`http://localhost:8081`).
-  - Checagem de Tipos Frontend: `npx tsc --noEmit` (deve retornar código 0).
+  - Iniciar: `cd bodysync-api && npm run dev` (porta `3000`; no Windows também `node node_modules/tsx/dist/cli.mjs src/server.ts`).
+  - Migrações SQL: `npm --prefix bodysync-api run migrate -- 006_student_evaluations.sql` (`001` a `006`).
+  - Testes API: `cd bodysync-api && npx tsx --test src/__tests__/trainer.test.ts src/__tests__/audit-fixes.test.ts` (e `modules-suite.test.ts` na branch do APK).
+  - Typecheck Backend: `cd bodysync-api && npx tsc --noEmit`.
+- **Frontend & Testes:**
+  - Iniciar: `npm start` (Expo) ou `npm run web` (`http://localhost:8081`).
+  - Typecheck Frontend: `npx tsc --noEmit`.
+  - Testes WCAG / Lógica / Build Android: `npx tsx --test src/__tests__/ui-wcag-audit.test.ts` (e na branch APK: `test/frontend-logic.test.ts`, `node --test test/android-build.test.mjs`).

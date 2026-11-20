@@ -1,16 +1,17 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRegister } from "./RegisterContext";
 import { lightColors } from "../../theme/colors";
+import { useTheme } from "../../context/ThemeProvider";
 import { API_URL } from "../../config/api";
 
 const PLAN_LABELS: Record<string, { name: string; price: string }> = {
@@ -27,6 +28,8 @@ interface Props {
 }
 
 export const PaymentScreen = ({ onPaid, onBack, accessToken }: Props) => {
+  const { colors } = useTheme();
+  const s = useMemo(() => createStyles(colors), [colors]);
   const { data } = useRegister();
   const plan = PLAN_LABELS[data.subscriptionType] || {
     name: "Plano",
@@ -62,20 +65,22 @@ export const PaymentScreen = ({ onPaid, onBack, accessToken }: Props) => {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       <View style={s.header}>
         <TouchableOpacity
           onPress={onBack}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={s.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
         >
           <Ionicons
             name="arrow-back"
             size={22}
-            color={lightColors.text.primary}
+            color={colors.text.primary}
           />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Ativação do Plano</Text>
-        <View style={{ width: 22 }} />
+        <View style={{ width: 44 }} />
       </View>
 
       <ScrollView
@@ -108,7 +113,7 @@ export const PaymentScreen = ({ onPaid, onBack, accessToken }: Props) => {
           <Ionicons
             name="shield-checkmark-outline"
             size={20}
-            color="#1d4ed8"
+            color={colors.info}
             style={{ marginRight: 10, marginTop: 2 }}
           />
           <Text style={s.infoText}>
@@ -126,6 +131,8 @@ export const PaymentScreen = ({ onPaid, onBack, accessToken }: Props) => {
           onPress={handleActivate}
           disabled={loading}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: loading, busy: loading }}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -146,87 +153,95 @@ export const PaymentScreen = ({ onPaid, onBack, accessToken }: Props) => {
   );
 };
 
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: lightColors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-  },
-  headerTitle: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 18,
-    color: lightColors.text.primary,
-  },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 24 },
-  planCard: {
-    backgroundColor: lightColors.primary,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-  },
-  planCardTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  planCardName: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 18,
-    color: "#fff",
-  },
-  planCardBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  planCardMeta: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 11,
-    color: "rgba(255,255,255,0.7)",
-    marginBottom: 2,
-  },
-  planCardMetaValue: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 14,
-    color: "#fff",
-  },
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: lightColors.infoLight,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: lightColors.info,
-    padding: 14,
-  },
-  infoText: {
-    flex: 1,
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
-    color: "#1d4ed8",
-    lineHeight: 19,
-  },
-  error: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
-    color: "#dc2626",
-    marginTop: 12,
-  },
-  payBtn: {
-    backgroundColor: lightColors.primary,
-    borderRadius: 14,
-    height: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  payBtnText: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 16,
-    color: "#fff",
-  },
-});
+const createStyles = (colors: typeof lightColors) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+    },
+    backBtn: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: -10,
+    },
+    headerTitle: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 18,
+      color: colors.text.primary,
+    },
+    scroll: { flex: 1 },
+    content: { paddingHorizontal: 24 },
+    planCard: {
+      backgroundColor: colors.primary,
+      borderRadius: 20,
+      padding: 20,
+      marginBottom: 24,
+    },
+    planCardTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    planCardName: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 18,
+      color: "#fff",
+    },
+    planCardBottom: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    planCardMeta: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 12,
+      color: "rgba(255,255,255,0.85)",
+      marginBottom: 2,
+    },
+    planCardMetaValue: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 14,
+      color: "#fff",
+    },
+    infoBox: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      backgroundColor: colors.infoLight,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.info,
+      padding: 14,
+    },
+    infoText: {
+      flex: 1,
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.text.primary,
+      lineHeight: 19,
+    },
+    error: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.error,
+      marginTop: 12,
+    },
+    payBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 14,
+      height: 54,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    payBtnText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 16,
+      color: "#fff",
+    },
+  });

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { View, Dimensions, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { View, useWindowDimensions, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { TabView, SceneMap } from "react-native-tab-view";
 import { useTheme } from "../context/ThemeProvider";
 import { TabFocusContext, StudentTabKey } from "../context/TabFocusContext";
@@ -7,11 +7,10 @@ import { HomeScreen, WorkoutsScreen, ProgressScreen, SettingsScreen } from "../s
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const initialLayout = { width: Dimensions.get("window").width };
-
 const TabNavigator = () => {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const layout = useWindowDimensions();
   const [index, setIndex] = useState(0);
   const [visitTick, setVisitTick] = useState<Record<StudentTabKey, number>>({
     home: 0,
@@ -96,6 +95,9 @@ const TabNavigator = () => {
               onPress={() => handleIndexChange(i)}
               activeOpacity={0.7}
               style={styles.tabItem}
+              accessibilityRole="tab"
+              accessibilityLabel={`Aba ${route.title}`}
+              accessibilityState={{ selected: focused }}
             >
               <View
                 style={[
@@ -138,7 +140,7 @@ const TabNavigator = () => {
         navigationState={{ index, routes }}
         renderScene={renderScene}
         onIndexChange={handleIndexChange}
-        initialLayout={initialLayout}
+        initialLayout={{ width: layout.width }}
         renderTabBar={renderTabBar}
         swipeEnabled={false}
         tabBarPosition="bottom"
@@ -171,6 +173,7 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     flex: 1,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 2,
@@ -180,12 +183,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 14,
     minWidth: 64,
+    minHeight: 44,
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
 });

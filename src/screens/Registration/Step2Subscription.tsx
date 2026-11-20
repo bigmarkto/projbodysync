@@ -1,16 +1,17 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRegister, SubscriptionType } from "./RegisterContext";
 import { StepHeader, ContinueButton } from "./components";
 import { lightColors } from "../../theme/colors";
+import { useTheme } from "../../context/ThemeProvider";
 
 interface PlanDef {
   id: SubscriptionType;
@@ -82,6 +83,8 @@ interface Props {
 }
 
 export const Step2Subscription = ({ onNext, onBack, totalSteps, currentStep }: Props) => {
+  const { colors } = useTheme();
+  const s = useMemo(() => createStyles(colors), [colors]);
   const { data, setField } = useRegister();
   const [error, setError] = useState("");
 
@@ -96,7 +99,7 @@ export const Step2Subscription = ({ onNext, onBack, totalSteps, currentStep }: P
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       <StepHeader current={currentStep} total={totalSteps} label="Plano de assinatura" onBack={onBack} />
       <ScrollView
         style={s.scroll}
@@ -127,6 +130,8 @@ export const Step2Subscription = ({ onNext, onBack, totalSteps, currentStep }: P
                 }
               }}
               activeOpacity={plan.disabled ? 1 : 0.85}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, disabled: !!plan.disabled }}
             >
               {plan.recommended && (
                 <View style={s.badge}>
@@ -155,7 +160,7 @@ export const Step2Subscription = ({ onNext, onBack, totalSteps, currentStep }: P
                   <Ionicons
                     name="checkmark"
                     size={15}
-                    color={selected ? lightColors.primary : lightColors.success}
+                    color={selected ? colors.primary : colors.success}
                     style={{ marginRight: 8 }}
                   />
                   <Text style={[s.feature, selected && s.featureSelected]}>{f}</Text>
@@ -169,7 +174,7 @@ export const Step2Subscription = ({ onNext, onBack, totalSteps, currentStep }: P
 
         {data.role === "personal" && (
           <View style={s.infoBox}>
-            <Ionicons name="information-circle-outline" size={16} color="#1d4ed8" style={{ marginRight: 8 }} />
+            <Ionicons name="information-circle-outline" size={16} color={colors.info} style={{ marginRight: 8 }} />
             <Text style={s.infoText}>
               Os planos Pro e Custom estão em desenvolvimento. Selecione o Basic para continuar.
             </Text>
@@ -184,111 +189,112 @@ export const Step2Subscription = ({ onNext, onBack, totalSteps, currentStep }: P
   );
 };
 
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: lightColors.background },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingTop: 8 },
-  title: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 22,
-    color: lightColors.text.primary,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 14,
-    color: lightColors.text.secondary,
-    marginBottom: 20,
-  },
-  card: {
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: lightColors.border,
-    backgroundColor: lightColors.surface,
-    padding: 18,
-    marginBottom: 16,
-    position: "relative",
-  },
-  cardSelected: {
-    borderColor: lightColors.primary,
-    backgroundColor: lightColors.primaryLight,
-  },
-  cardDisabled: { opacity: 0.5 },
-  badge: {
-    position: "absolute",
-    top: -12,
-    right: 14,
-    backgroundColor: lightColors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  badgeDisabled: {
-    position: "absolute",
-    top: -12,
-    right: 14,
-    backgroundColor: lightColors.text.tertiary,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  badgeText: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 11,
-    color: "#fff",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginBottom: 12,
-  },
-  planName: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 20,
-    color: lightColors.text.primary,
-  },
-  planNameSelected: { color: lightColors.primary },
-  priceRow: { flexDirection: "row", alignItems: "baseline" },
-  price: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 22,
-    color: lightColors.text.primary,
-  },
-  priceSelected: { color: lightColors.primary },
-  period: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
-    color: lightColors.text.tertiary,
-    marginLeft: 2,
-  },
-  divider: { height: 1, backgroundColor: lightColors.border, marginBottom: 12 },
-  featureRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  feature: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
-    color: lightColors.text.secondary,
-  },
-  featureSelected: { color: lightColors.text.primary },
-  error: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
-    color: "#dc2626",
-    marginBottom: 8,
-  },
-  infoBox: {
-    flexDirection: "row",
-    backgroundColor: lightColors.infoLight,
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: lightColors.info,
-  },
-  infoText: {
-    flex: 1,
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
-    color: "#1d4ed8",
-    lineHeight: 18,
-  },
-});
+const createStyles = (colors: typeof lightColors) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    scroll: { flex: 1 },
+    content: { paddingHorizontal: 24, paddingTop: 8 },
+    title: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 22,
+      color: colors.text.primary,
+      marginBottom: 4,
+    },
+    subtitle: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 14,
+      color: colors.text.secondary,
+      marginBottom: 20,
+    },
+    card: {
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 18,
+      marginBottom: 16,
+      position: "relative",
+    },
+    cardSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+    },
+    cardDisabled: { opacity: 0.5 },
+    badge: {
+      position: "absolute",
+      top: -12,
+      right: 14,
+      backgroundColor: colors.primary,
+      borderRadius: 20,
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+    },
+    badgeDisabled: {
+      position: "absolute",
+      top: -12,
+      right: 14,
+      backgroundColor: colors.text.tertiary,
+      borderRadius: 20,
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+    },
+    badgeText: {
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 12,
+      color: "#fff",
+    },
+    cardHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-end",
+      marginBottom: 12,
+    },
+    planName: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 20,
+      color: colors.text.primary,
+    },
+    planNameSelected: { color: colors.primary },
+    priceRow: { flexDirection: "row", alignItems: "baseline" },
+    price: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 22,
+      color: colors.text.primary,
+    },
+    priceSelected: { color: colors.primary },
+    period: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.text.tertiary,
+      marginLeft: 2,
+    },
+    divider: { height: 1, backgroundColor: colors.border, marginBottom: 12 },
+    featureRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+    feature: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.text.secondary,
+    },
+    featureSelected: { color: colors.text.primary },
+    error: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.error,
+      marginBottom: 8,
+    },
+    infoBox: {
+      flexDirection: "row",
+      backgroundColor: colors.infoLight,
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.info,
+    },
+    infoText: {
+      flex: 1,
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.text.primary,
+      lineHeight: 18,
+    },
+  });

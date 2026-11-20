@@ -1,16 +1,17 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRegister } from "./RegisterContext";
 import { StepHeader, ContinueButton } from "./components";
 import { lightColors } from "../../theme/colors";
+import { useTheme } from "../../context/ThemeProvider";
 
 const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -23,12 +24,15 @@ interface Props {
   isPersonal?: boolean;
 }
 
-const Row = ({ label, value }: { label: string; value: string }) => (
-  <View style={r.row}>
-    <Text style={r.label}>{label}</Text>
-    <Text style={r.value}>{value}</Text>
-  </View>
-);
+const Row = ({ label, value }: { label: string; value: string }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[r.row, { borderBottomColor: colors.border }]}>
+      <Text style={[r.label, { color: colors.text.secondary }]}>{label}</Text>
+      <Text style={[r.value, { color: colors.text.primary }]}>{value}</Text>
+    </View>
+  );
+};
 
 const r = StyleSheet.create({
   row: {
@@ -36,18 +40,15 @@ const r = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: lightColors.border,
   },
   label: {
     fontFamily: "Poppins_400Regular",
     fontSize: 13,
-    color: lightColors.text.secondary,
     flex: 1,
   },
   value: {
     fontFamily: "Poppins_500Medium",
     fontSize: 13,
-    color: lightColors.text.primary,
     flex: 1,
     textAlign: "right",
   },
@@ -63,27 +64,33 @@ const Section = ({
   onEdit: (s: number) => void;
   step: number;
   children: React.ReactNode;
-}) => (
-  <View style={sec.box}>
-    <View style={sec.header}>
-      <Text style={sec.title}>{title}</Text>
-      <TouchableOpacity onPress={() => onEdit(step)} style={sec.editBtn}>
-        <Ionicons name="create-outline" size={14} color={lightColors.primary} style={{ marginRight: 4 }} />
-        <Text style={sec.editText}>Alterar</Text>
-      </TouchableOpacity>
+}) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[sec.box, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={sec.header}>
+        <Text style={[sec.title, { color: colors.text.secondary }]}>{title}</Text>
+        <TouchableOpacity
+          onPress={() => onEdit(step)}
+          style={sec.editBtn}
+          accessibilityRole="button"
+          accessibilityLabel={`Alterar ${title}`}
+        >
+          <Ionicons name="create-outline" size={14} color={colors.primary} style={{ marginRight: 4 }} />
+          <Text style={[sec.editText, { color: colors.primary }]}>Alterar</Text>
+        </TouchableOpacity>
+      </View>
+      {children}
     </View>
-    {children}
-  </View>
-);
+  );
+};
 
 const sec = StyleSheet.create({
   box: {
-    backgroundColor: lightColors.surface,
     borderRadius: 14,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: lightColors.border,
   },
   header: {
     flexDirection: "row",
@@ -94,15 +101,18 @@ const sec = StyleSheet.create({
   title: {
     fontFamily: "Poppins_600SemiBold",
     fontSize: 14,
-    color: lightColors.text.secondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  editBtn: { flexDirection: "row", alignItems: "center" },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 44,
+    paddingHorizontal: 8,
+  },
   editText: {
     fontFamily: "Poppins_500Medium",
     fontSize: 13,
-    color: lightColors.primary,
   },
 });
 
@@ -140,6 +150,8 @@ export const Step7Confirmation = ({
   currentStep,
   isPersonal = false,
 }: Props) => {
+  const { colors } = useTheme();
+  const s = useMemo(() => createStyles(colors), [colors]);
   const { data } = useRegister();
 
   const workoutDaysStr =
@@ -155,7 +167,7 @@ export const Step7Confirmation = ({
   const planIsFree = data.subscriptionType === "free";
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       <StepHeader current={currentStep} total={totalSteps} label="Confirmação" onBack={onBack} />
       <ScrollView
         style={s.scroll}
@@ -174,7 +186,7 @@ export const Step7Confirmation = ({
         </Section>
 
         <Section title="Plano" onEdit={onEdit} step={2}>
-          <Text style={[s.planText, { color: lightColors.primary }]}>
+          <Text style={[s.planText, { color: colors.primary }]}>
             {PLAN_LABELS[data.subscriptionType] || data.subscriptionType}
           </Text>
         </Section>
@@ -201,14 +213,14 @@ export const Step7Confirmation = ({
 
         {planIsFree ? (
           <View style={s.freeNote}>
-            <Ionicons name="information-circle-outline" size={16} color="#1d4ed8" style={{ marginRight: 8 }} />
+            <Ionicons name="information-circle-outline" size={16} color={colors.info} style={{ marginRight: 8 }} />
             <Text style={s.freeNoteText}>
               Você escolheu o plano <Text style={{ fontFamily: "Poppins_700Bold" }}>Free</Text>. Nenhum pagamento será necessário.
             </Text>
           </View>
         ) : (
           <View style={s.payNote}>
-            <Ionicons name="card-outline" size={16} color={lightColors.primary} style={{ marginRight: 8 }} />
+            <Ionicons name="card-outline" size={16} color={colors.primary} style={{ marginRight: 8 }} />
             <Text style={s.payNoteText}>
               Na próxima etapa você preencherá os dados de pagamento para ativar o plano{" "}
               <Text style={{ fontFamily: "Poppins_700Bold" }}>
@@ -218,8 +230,12 @@ export const Step7Confirmation = ({
           </View>
         )}
 
-        <TouchableOpacity style={s.editAll} onPress={() => onEdit(1)}>
-          <Ionicons name="create-outline" size={16} color={lightColors.primary} style={{ marginRight: 6 }} />
+        <TouchableOpacity
+          style={s.editAll}
+          onPress={() => onEdit(1)}
+          accessibilityRole="button"
+        >
+          <Ionicons name="create-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
           <Text style={s.editAllText}>Alterar qualquer informação</Text>
         </TouchableOpacity>
 
@@ -234,69 +250,71 @@ export const Step7Confirmation = ({
   );
 };
 
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: lightColors.background },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingTop: 8 },
-  title: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 22,
-    color: lightColors.text.primary,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 14,
-    color: lightColors.text.secondary,
-    marginBottom: 20,
-  },
-  planText: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 16,
-  },
-  freeNote: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: lightColors.infoLight,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: lightColors.info,
-    padding: 14,
-    marginBottom: 14,
-  },
-  freeNoteText: {
-    flex: 1,
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
-    color: "#1d4ed8",
-    lineHeight: 19,
-  },
-  payNote: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: lightColors.primaryLight,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: lightColors.primary + "40",
-    padding: 14,
-    marginBottom: 14,
-  },
-  payNoteText: {
-    flex: 1,
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
-    color: lightColors.text.primary,
-    lineHeight: 19,
-  },
-  editAll: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-  },
-  editAllText: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 14,
-    color: lightColors.primary,
-  },
-});
+const createStyles = (colors: typeof lightColors) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    scroll: { flex: 1 },
+    content: { paddingHorizontal: 24, paddingTop: 8 },
+    title: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 22,
+      color: colors.text.primary,
+      marginBottom: 4,
+    },
+    subtitle: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 14,
+      color: colors.text.secondary,
+      marginBottom: 20,
+    },
+    planText: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 16,
+    },
+    freeNote: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      backgroundColor: colors.infoLight,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.info,
+      padding: 14,
+      marginBottom: 14,
+    },
+    freeNoteText: {
+      flex: 1,
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.text.primary,
+      lineHeight: 19,
+    },
+    payNote: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      backgroundColor: colors.primaryLight,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary + "40",
+      padding: 14,
+      marginBottom: 14,
+    },
+    payNoteText: {
+      flex: 1,
+      fontFamily: "Poppins_400Regular",
+      fontSize: 13,
+      color: colors.text.primary,
+      lineHeight: 19,
+    },
+    editAll: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: 44,
+      paddingVertical: 12,
+    },
+    editAllText: {
+      fontFamily: "Poppins_500Medium",
+      fontSize: 14,
+      color: colors.primary,
+    },
+  });

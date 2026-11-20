@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeProvider";
 import { lightColors } from "../../theme/colors";
+import { AiBotAvatar, getPreparingStage } from "../../components/AiBotAvatar";
 
 interface Props {
   message?: string;
@@ -12,54 +13,57 @@ interface Props {
 }
 
 const PreparingScreen = ({
-  message = "Estamos preparando seu plano...",
-  icon = "barbell",
+  message,
   durationMs = 5000,
   onDone,
 }: Props) => {
-  const { colors } = useTheme();
+  const { colors, reduceMotion } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const rotate = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(0)).current;
-  const dots = useRef(new Animated.Value(0)).current;
+  const [stageRatio, setStageRatio] = useState(0);
 
   useEffect(() => {
+    const t1 = setTimeout(() => setStageRatio(0.45), Math.round(durationMs * 0.38));
+    const t2 = setTimeout(() => setStageRatio(0.85), Math.round(durationMs * 0.78));
+    const timer = setTimeout(onDone, durationMs);
+
+    if (reduceMotion) {
+      progress.setValue(1);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(timer);
+      };
+    }
+
     // Anel girando continuamente
     const spin = Animated.loop(
       Animated.timing(rotate, {
         toValue: 1,
-        duration: 1600,
+        duration: 1800,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
     );
-    // Ícone pulsando
+    // Pulso suave do container do bot
     const beat = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
           toValue: 1,
-          duration: 700,
+          duration: 850,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(pulse, {
           toValue: 0,
-          duration: 700,
+          duration: 850,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ]),
-    );
-    // Reticências piscando
-    const blink = Animated.loop(
-      Animated.timing(dots, {
-        toValue: 3,
-        duration: 1200,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      }),
     );
     // Barra de progresso preenchendo ao longo da duração
     const bar = Animated.timing(progress, {
@@ -71,41 +75,44 @@ const PreparingScreen = ({
 
     spin.start();
     beat.start();
-    blink.start();
     bar.start();
 
-    const timer = setTimeout(onDone, durationMs);
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
       clearTimeout(timer);
       spin.stop();
       beat.stop();
-      blink.stop();
       bar.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [durationMs, reduceMotion]);
 
   const spin = rotate.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
   });
-  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] });
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] });
   const width = progress.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
+
+  const stage = getPreparingStage(stageRatio);
 
   return (
     <View style={styles.container}>
       <View style={styles.loaderWrap}>
         <Animated.View style={[styles.ring, { transform: [{ rotate: spin }] }]} />
         <Animated.View style={[styles.iconCircle, { transform: [{ scale }] }]}>
-          <Ionicons name={icon} size={44} color="#FFFFFF" />
+          <AiBotAvatar size={64} state={stage.state} variant="inverse" />
         </Animated.View>
       </View>
 
-      <Text style={styles.message}>{message}</Text>
-      <Text style={styles.sub}>Isso leva só alguns segundos</Text>
+      <Text style={styles.message} accessibilityLiveRegion="polite">
+        {stageRatio === 0 && message ? message : stage.message}
+      </Text>
+      <Text style={styles.sub}>{stage.sub}</Text>
 
       <View style={styles.progressTrack}>
         <Animated.View style={[styles.progressFill, { width }]} />

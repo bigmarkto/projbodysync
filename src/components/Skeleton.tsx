@@ -15,10 +15,14 @@ export const Skeleton = ({
   borderRadius = 8,
   style,
 }: SkeletonProps) => {
-  const { colors } = useTheme();
-  const opacity = useRef(new Animated.Value(0.35)).current;
+  const { colors, reduceMotion } = useTheme();
+  const opacity = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
+    if (reduceMotion) {
+      opacity.setValue(0.5);
+      return;
+    }
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, {
@@ -36,7 +40,7 @@ export const Skeleton = ({
     pulse.start();
 
     return () => pulse.stop();
-  }, [opacity]);
+  }, [opacity, reduceMotion]);
 
   return (
     <Animated.View

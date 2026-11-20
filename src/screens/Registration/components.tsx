@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   StyleSheet,
   TextInput,
   TextInputProps,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -36,14 +38,19 @@ export const StepHeader = ({ current, total, label, onBack }: StepHeaderProps) =
       <TouchableOpacity
         onPress={handlePress}
         style={sh.back}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityRole="button"
+        accessibilityLabel="Voltar para a etapa anterior"
       >
         <Ionicons name="arrow-back" size={22} color={colors.text.primary} />
       </TouchableOpacity>
-      <Text style={[sh.label, { color: colors.text.tertiary }]}>
-        Etapa {current} de {total}
+      <Text style={[sh.label, { color: colors.text.secondary }]}>
+        Etapa {current} de {total} • {label}
       </Text>
-      <View style={[sh.barTrack, { backgroundColor: colors.border }]}>
+      <View
+        style={[sh.barTrack, { backgroundColor: colors.border }]}
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 1, max: total, now: current }}
+      >
         <View
           style={[
             sh.barFill,
@@ -59,8 +66,13 @@ export const StepHeader = ({ current, total, label, onBack }: StepHeaderProps) =
 };
 
 const sh = StyleSheet.create({
-  container: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8 },
-  back: { marginBottom: 12 },
+  container: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 8 },
+  back: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    marginBottom: 4,
+  },
   label: {
     fontFamily: "Poppins_500Medium",
     fontSize: 13,
@@ -83,10 +95,23 @@ interface FieldInputProps extends TextInputProps {
   error?: string;
   leftIcon?: string;
   rightElement?: React.ReactNode;
+  disabled?: boolean;
 }
 
-export const FieldInput = ({ label, error, leftIcon, rightElement, ...props }: FieldInputProps) => {
+export const FieldInput = ({
+  label,
+  error,
+  leftIcon,
+  rightElement,
+  disabled = false,
+  editable = true,
+  onFocus,
+  onBlur,
+  ...props
+}: FieldInputProps) => {
   const { colors } = useTheme();
+  const [focused, setFocused] = useState(false);
+  const isDisabled = disabled || editable === false;
 
   return (
     <View style={fi.group}>
@@ -95,27 +120,64 @@ export const FieldInput = ({ label, error, leftIcon, rightElement, ...props }: F
         style={[
           fi.row,
           {
-            backgroundColor: colors.card,
-            borderColor: error ? colors.error : colors.border,
+            backgroundColor: isDisabled
+              ? colors.disabled
+              : error
+                ? colors.errorLight
+                : focused
+                  ? colors.surface
+                  : colors.surfaceVariant,
+            borderColor: error
+              ? colors.error
+              : focused
+                ? colors.primary
+                : colors.border,
+            borderWidth: focused || error ? 2 : 1.5,
           },
+          isDisabled && fi.disabledRow,
         ]}
       >
         {leftIcon && (
           <Ionicons
             name={leftIcon as any}
             size={17}
-            color={colors.text.tertiary}
+            color={
+              error
+                ? colors.error
+                : focused
+                  ? colors.primary
+                  : colors.text.tertiary
+            }
             style={fi.icon}
           />
         )}
         <TextInput
-          style={[fi.input, { color: colors.text.primary }]}
+          style={[
+            fi.input,
+            { color: isDisabled ? colors.disabledText : colors.text.primary },
+            Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : null,
+          ]}
           placeholderTextColor={colors.text.tertiary}
+          editable={!isDisabled}
+          accessibilityLabel={label}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
           {...props}
         />
         {rightElement}
       </View>
-      {!!error && <Text style={[fi.error, { color: colors.error }]}>{error}</Text>}
+      {!!error && (
+        <View style={fi.errorRow} accessibilityLiveRegion="polite">
+          <Ionicons name="alert-circle-outline" size={14} color={colors.error} />
+          <Text style={[fi.error, { color: colors.error }]}>{error}</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -132,19 +194,30 @@ const fi = StyleSheet.create({
     alignItems: "center",
     borderRadius: 14,
     borderWidth: 1.5,
-    height: 50,
-    paddingHorizontal: 14,
+    height: 52,
+    paddingLeft: 14,
+    paddingRight: 8,
+  },
+  disabledRow: {
+    opacity: 0.65,
   },
   icon: { marginRight: 10 },
   input: {
     flex: 1,
     fontFamily: "Poppins_400Regular",
     fontSize: 14,
+    height: "100%",
+  },
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 5,
   },
   error: {
     fontFamily: "Poppins_400Regular",
     fontSize: 12,
-    marginTop: 4,
+    flex: 1,
   },
 });
 
@@ -163,6 +236,7 @@ export const ContinueButton = ({
   disabled = false,
 }: ContinueButtonProps) => {
   const { colors } = useTheme();
+  const isInactive = disabled || loading;
 
   return (
     <TouchableOpacity
@@ -172,13 +246,23 @@ export const ContinueButton = ({
           backgroundColor: colors.primary,
           shadowColor: colors.primary,
         },
-        (disabled || loading) && cb.disabled,
+        isInactive && cb.disabled,
       ]}
       onPress={onPress}
-      disabled={disabled || loading}
+      disabled={isInactive}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={loading ? "Processando..." : label}
+      accessibilityState={{ disabled: isInactive, busy: loading }}
     >
-      <Text style={cb.text}>{loading ? "Aguarde..." : label}</Text>
+      {loading ? (
+        <View style={cb.loadingRow}>
+          <ActivityIndicator color="#FFFFFF" size="small" />
+          <Text style={cb.text}>Aguarde...</Text>
+        </View>
+      ) : (
+        <Text style={cb.text}>{label}</Text>
+      )}
     </TouchableOpacity>
   );
 };
@@ -194,7 +278,12 @@ const cb = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  disabled: { opacity: 0.55 },
+  disabled: { opacity: 0.6 },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   text: {
     fontFamily: "Poppins_600SemiBold",
     fontSize: 16,

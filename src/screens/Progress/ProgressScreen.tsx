@@ -208,10 +208,12 @@ const ProgressScreen = () => {
                   setEditingGoal((v) => !v);
                   setGoalInput(summary?.goal != null ? String(summary.goal) : "");
                 }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 style={styles.editBtn}
+                accessibilityRole="button"
+                accessibilityLabel={editingGoal ? "Fechar edição da meta de peso" : "Editar meta de peso"}
               >
-                <Ionicons name={editingGoal ? "close" : "create-outline"} size={16} color={colors.primary} />
+                <Ionicons name={editingGoal ? "close" : "create-outline"} size={18} color={colors.primary} />
               </TouchableOpacity>
             </View>
 
@@ -541,9 +543,12 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       color: colors.text.primary,
     },
     editBtn: {
-      padding: 6,
-      borderRadius: 8,
+      width: 44,
+      height: 44,
+      borderRadius: 12,
       backgroundColor: colors.surfaceVariant,
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     weightRow: {
@@ -663,7 +668,8 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       marginTop: 14,
     },
     statTile: {
-      width: "48%",
+      width: "47.5%",
+      flexGrow: 1,
       backgroundColor: colors.surfaceVariant,
       borderRadius: 16,
       padding: 14,
@@ -687,7 +693,7 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
     statValueHi: { color: colors.primary },
     statLabel: {
       fontFamily: "Poppins_400Regular",
-      fontSize: 11,
+      fontSize: 12,
       color: colors.text.secondary,
       marginTop: 2,
     },
@@ -732,7 +738,7 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
     dayCol: { alignItems: "center", flex: 1 },
     dayLabel: {
       fontFamily: "Poppins_500Medium",
-      fontSize: 11,
+      fontSize: 12,
       color: colors.text.tertiary,
       marginBottom: 8,
     },

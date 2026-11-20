@@ -1,7 +1,7 @@
 // Tipografia com escala refinada para leitura confortável em mobile
 export default {
   fontSize: {
-    xs: 11,
+    xs: 12,
     sm: 13,
     md: 15,
     lg: 17,

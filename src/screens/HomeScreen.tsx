@@ -226,6 +226,8 @@ const HomeScreen = () => {
             style={styles.trainerBannerCard}
             onPress={() => navigateTab("workouts")}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Ficha prescrita por ${trainerBanner.trainerName}. Toque para iniciar treino`}
           >
             <View style={styles.trainerBannerIcon}>
               <Ionicons name="barbell" size={20} color="#FFFFFF" />
@@ -249,7 +251,7 @@ const HomeScreen = () => {
         )}
 
         {error && (
-          <View style={styles.errorBox}>
+          <View style={styles.errorBox} accessibilityLiveRegion="polite">
             <Ionicons
               name="alert-circle-outline"
               size={18}
@@ -257,7 +259,12 @@ const HomeScreen = () => {
               style={{ marginRight: 8 }}
             />
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={onRefresh}>
+            <TouchableOpacity
+              onPress={onRefresh}
+              style={styles.retryBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Tentar carregar perfil novamente"
+            >
               <Text style={styles.retry}>Tentar novamente</Text>
             </TouchableOpacity>
           </View>
@@ -467,10 +474,10 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
 
     // Hero Card
     heroCard: {
-      backgroundColor: isDark ? colors.surface : "#FFF7ED",
+      backgroundColor: isDark ? "rgba(249, 115, 22, 0.10)" : "#FFF7ED",
       borderRadius: 20,
       borderWidth: 1,
-      borderColor: isDark ? colors.border : "rgba(249, 115, 22, 0.2)",
+      borderColor: isDark ? "rgba(249, 115, 22, 0.32)" : "rgba(249, 115, 22, 0.25)",
       padding: 18,
       marginBottom: 16,
     },
@@ -499,20 +506,21 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
     },
     heroSubtitle: {
       fontFamily: "Poppins_400Regular",
-      fontSize: 12,
+      fontSize: 13,
       color: colors.text.secondary,
-      lineHeight: 18,
+      lineHeight: 19,
     },
     trainerBannerCard: {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
-      backgroundColor: isDark ? colors.surface : "#ECFDF5",
+      backgroundColor: isDark ? "rgba(16, 185, 129, 0.10)" : "#ECFDF5",
       borderRadius: 18,
       borderWidth: 1.5,
       borderColor: colors.success + "55",
       padding: 14,
       marginBottom: 16,
+      minHeight: 64,
     },
     trainerBannerIcon: {
       width: 42,
@@ -596,7 +604,7 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
     dayCol: { alignItems: "center", flex: 1 },
     dayLabel: {
       fontFamily: "Poppins_500Medium",
-      fontSize: 11,
+      fontSize: 12,
       color: colors.text.tertiary,
       marginBottom: 8,
     },
@@ -605,9 +613,9 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       fontFamily: "Poppins_700Bold",
     },
     dayCircle: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.surfaceVariant,
@@ -656,7 +664,8 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       gap: 12,
     },
     metricItem: {
-      width: "48%",
+      width: "47.5%",
+      flexGrow: 1,
       backgroundColor: colors.surfaceVariant,
       borderRadius: 16,
       padding: 14,
@@ -685,13 +694,13 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
     bmiBadge: {
       marginTop: 6,
       paddingHorizontal: 8,
-      paddingVertical: 3,
+      paddingVertical: 4,
       borderRadius: 8,
       alignSelf: "flex-start",
     },
     bmiBadgeText: {
       fontFamily: "Poppins_600SemiBold",
-      fontSize: 10,
+      fontSize: 12,
     },
 
     // Erro
@@ -709,11 +718,16 @@ const createStyles = (colors: typeof lightColors, isDark: boolean) =>
       fontSize: 13,
       color: colors.error,
     },
+    retryBtn: {
+      minHeight: 44,
+      justifyContent: "center",
+      paddingHorizontal: 8,
+      marginLeft: 4,
+    },
     retry: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 13,
       color: colors.primary,
-      marginLeft: 8,
     },
   });
 

@@ -10,7 +10,7 @@ import { Step6Frequency } from './Step6Frequency';
 import { Step7Confirmation } from './Step7Confirmation';
 import { PaymentScreen } from './PaymentScreen';
 import { View, Text, StyleSheet } from 'react-native';
-import { lightColors } from '../../theme/colors';
+import { useTheme } from '../../context/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 import { useRegisterApi } from '../../hooks/useRegister';
 
@@ -178,13 +178,9 @@ const RegisterFlow = ({ accessToken }: { accessToken: string }) => {
 
 const RegisterScreen = () => {
   const { accessToken } = useAuth();
+  const { colors } = useTheme();
   return (
-    <View style={{ flex: 1, backgroundColor: lightColors.background }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, marginTop: 40 }}>
-        <Text style={{ marginLeft: 12, fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: lightColors.text.primary }}>
-          Cadastro
-        </Text>
-      </View>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <RegisterProvider>
         <RegisterFlow accessToken={accessToken ?? ''} />
       </RegisterProvider>

@@ -112,11 +112,16 @@ const PlanEditor = ({ initial, onSaved, onCancel }: Props) => {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={confirmCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={confirmCancel}
+          style={styles.headerIconBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Cancelar e voltar"
+        >
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isNew ? "Novo plano" : "Editar plano"}</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 44 }} />
       </View>
 
       <ScrollView
@@ -168,7 +173,12 @@ const PlanEditor = ({ initial, onSaved, onCancel }: Props) => {
                   <Text style={styles.exCat}>{ex.exercise.category}</Text>
                 )}
               </View>
-              <TouchableOpacity onPress={() => remove(index)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity
+                onPress={() => remove(index)}
+                style={styles.trashBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`Remover exercício ${ex.exercise?.name ?? index + 1}`}
+              >
                 <Ionicons name="trash-outline" size={18} color={colors.error} />
               </TouchableOpacity>
             </View>
@@ -250,11 +260,21 @@ const Stepper = ({ styles, colors, label, value, onDec, onInc }: StepperProps) =
   <View style={styles.stepper}>
     <Text style={styles.stepperLabel}>{label}</Text>
     <View style={styles.stepperControls}>
-      <TouchableOpacity style={styles.stepBtn} onPress={onDec}>
+      <TouchableOpacity
+        style={styles.stepBtn}
+        onPress={onDec}
+        accessibilityRole="button"
+        accessibilityLabel={`Diminuir ${label}`}
+      >
         <Ionicons name="remove" size={16} color={colors.text.secondary} />
       </TouchableOpacity>
       <Text style={styles.stepValue}>{value}</Text>
-      <TouchableOpacity style={styles.stepBtn} onPress={onInc}>
+      <TouchableOpacity
+        style={styles.stepBtn}
+        onPress={onInc}
+        accessibilityRole="button"
+        accessibilityLabel={`Aumentar ${label}`}
+      >
         <Ionicons name="add" size={16} color={colors.text.secondary} />
       </TouchableOpacity>
     </View>
@@ -271,6 +291,20 @@ const createStyles = (colors: typeof lightColors) =>
       backgroundColor: colors.primary,
       paddingHorizontal: 16,
       paddingBottom: 16,
+    },
+    headerIconBtn: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: -8,
+    },
+    trashBtn: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: -8,
     },
     headerTitle: {
       fontFamily: "Poppins_600SemiBold",
@@ -365,7 +399,7 @@ const createStyles = (colors: typeof lightColors) =>
     },
     stepperLabel: {
       fontFamily: "Poppins_400Regular",
-      fontSize: 11,
+      fontSize: 12,
       color: colors.text.tertiary,
       marginBottom: 4,
     },
@@ -375,9 +409,9 @@ const createStyles = (colors: typeof lightColors) =>
       justifyContent: "space-between",
     },
     stepBtn: {
-      width: 28,
-      height: 28,
-      borderRadius: 8,
+      width: 44,
+      height: 44,
+      borderRadius: 10,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,

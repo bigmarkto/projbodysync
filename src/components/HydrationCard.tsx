@@ -24,7 +24,7 @@ interface HydrationStatus {
 }
 
 const HydrationCard = () => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { request } = useApi();
 
   const [status, setStatus] = useState<HydrationStatus | null>(null);
@@ -35,7 +35,7 @@ const HydrationCard = () => {
   const [editing, setEditing] = useState(false);
   const [goalInput, setGoalInput] = useState("");
 
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -146,7 +146,12 @@ const HydrationCard = () => {
         <Text style={styles.errorText}>
           {error ?? "Hidratação indisponível."}
         </Text>
-        <TouchableOpacity onPress={load}>
+        <TouchableOpacity
+          onPress={load}
+          style={styles.retryBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Tentar carregar hidratação novamente"
+        >
           <Text style={styles.retry}>Tentar novamente</Text>
         </TouchableOpacity>
       </View>
@@ -179,8 +184,11 @@ const HydrationCard = () => {
           </View>
           <TouchableOpacity
             onPress={() => setEditing((v) => !v)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             style={styles.settingsBtn}
+            accessibilityRole="button"
+            accessibilityLabel={editing ? "Fechar ajuste de meta de água" : "Ajustar meta de água"}
+            accessibilityState={{ expanded: editing }}
           >
             <Ionicons
               name={editing ? "close" : "options-outline"}
@@ -209,7 +217,11 @@ const HydrationCard = () => {
       </View>
 
       {/* Barra de Progresso */}
-      <View style={styles.progressTrack}>
+      <View
+        style={styles.progressTrack}
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 0, max: 100, now: progressPercent }}
+      >
         <View
           style={[
             styles.progressFill,
@@ -229,6 +241,9 @@ const HydrationCard = () => {
               disabled={busy}
               style={styles.cupBtn}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Copo ${i + 1} de ${Math.min(cups.total, 12)}, ${filled ? "consumido" : "vazio"}`}
+              accessibilityState={{ selected: filled, disabled: busy }}
             >
               <Ionicons
                 name={filled ? "water" : "water-outline"}
@@ -246,6 +261,9 @@ const HydrationCard = () => {
           style={[styles.removeBtn, (busy || cups.consumed === 0) && styles.disabled]}
           onPress={() => addIntake(-status.cupSizeMl)}
           disabled={busy || cups.consumed === 0}
+          accessibilityRole="button"
+          accessibilityLabel={`Remover ${status.cupSizeMl} ml de água`}
+          accessibilityState={{ disabled: busy || cups.consumed === 0 }}
         >
           <Ionicons name="remove" size={20} color={colors.text.secondary} />
         </TouchableOpacity>
@@ -254,18 +272,24 @@ const HydrationCard = () => {
           style={[styles.quickAddBtn, busy && styles.disabled]}
           onPress={() => addIntake(status.cupSizeMl)}
           disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={`Adicionar ${status.cupSizeMl} ml de água`}
+          accessibilityState={{ disabled: busy }}
         >
-          <Ionicons name="add" size={16} color="#FFFFFF" />
-          <Text style={styles.quickAddText}>+{status.cupSizeMl} ml</Text>
+          <Ionicons name="add" size={16} color={isDark ? colors.text.inverse : "#FFFFFF"} />
+          <Text style={styles.quickAddText}>{status.cupSizeMl} ml</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.quickAddSecondary, busy && styles.disabled]}
           onPress={() => addIntake(500)}
           disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Adicionar 500 ml de água"
+          accessibilityState={{ disabled: busy }}
         >
           <Ionicons name="add" size={16} color={colors.info} />
-          <Text style={styles.quickAddSecondaryText}>+500 ml</Text>
+          <Text style={styles.quickAddSecondaryText}>500 ml</Text>
         </TouchableOpacity>
       </View>
 
@@ -277,6 +301,8 @@ const HydrationCard = () => {
             style={[styles.suggestBtn, usingSuggested && styles.suggestBtnActive]}
             onPress={() => saveGoal(null)}
             disabled={busy}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: usingSuggested, disabled: busy }}
           >
             <Ionicons
               name={usingSuggested ? "radio-button-on" : "radio-button-off"}
@@ -296,6 +322,7 @@ const HydrationCard = () => {
               keyboardType="numeric"
               value={goalInput}
               onChangeText={setGoalInput}
+              accessibilityLabel="Meta personalizada de água em mililitros"
             />
             <TouchableOpacity
               style={[styles.saveBtn, busy && styles.disabled]}
@@ -304,6 +331,9 @@ const HydrationCard = () => {
                 if (!isNaN(n)) saveGoal(n);
               }}
               disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Salvar meta de água"
+              accessibilityState={{ disabled: busy }}
             >
               <Text style={styles.saveBtnText}>Salvar</Text>
             </TouchableOpacity>
@@ -311,12 +341,16 @@ const HydrationCard = () => {
         </View>
       )}
 
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && (
+        <Text style={styles.errorText} accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      )}
     </View>
   );
 };
 
-const createStyles = (colors: typeof lightColors) =>
+const createStyles = (colors: typeof lightColors, isDark: boolean) =>
   StyleSheet.create({
     card: {
       backgroundColor: colors.card,
@@ -357,7 +391,7 @@ const createStyles = (colors: typeof lightColors) =>
     },
     subtitle: {
       fontFamily: "Poppins_400Regular",
-      fontSize: 11,
+      fontSize: 12,
       color: colors.text.tertiary,
       marginTop: -2,
     },
@@ -378,9 +412,12 @@ const createStyles = (colors: typeof lightColors) =>
       color: colors.info,
     },
     settingsBtn: {
-      padding: 6,
-      borderRadius: 8,
+      width: 44,
+      height: 44,
+      borderRadius: 12,
       backgroundColor: colors.surfaceVariant,
+      alignItems: "center",
+      justifyContent: "center",
     },
     volumeRow: {
       flexDirection: "row",
@@ -434,12 +471,14 @@ const createStyles = (colors: typeof lightColors) =>
     cupsRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      justifyContent: "space-between",
+      justifyContent: "flex-start",
+      gap: 4,
       marginBottom: 16,
-      paddingHorizontal: 4,
     },
     cupBtn: {
-      padding: 6,
+      minWidth: 44,
+      minHeight: 44,
+      borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -462,7 +501,7 @@ const createStyles = (colors: typeof lightColors) =>
       flex: 1,
       height: 44,
       borderRadius: 12,
-      backgroundColor: colors.info,
+      backgroundColor: isDark ? colors.info : "#0369A1",
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -471,7 +510,7 @@ const createStyles = (colors: typeof lightColors) =>
     quickAddText: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 14,
-      color: "#FFFFFF",
+      color: isDark ? colors.text.inverse : "#FFFFFF",
     },
     quickAddSecondary: {
       paddingHorizontal: 14,
@@ -508,7 +547,8 @@ const createStyles = (colors: typeof lightColors) =>
     suggestBtn: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 6,
+      minHeight: 44,
+      paddingVertical: 8,
       gap: 8,
     },
     suggestBtnActive: {},
@@ -525,7 +565,7 @@ const createStyles = (colors: typeof lightColors) =>
     },
     input: {
       flex: 1,
-      height: 44,
+      height: 48,
       borderWidth: 1.5,
       borderColor: colors.border,
       borderRadius: 12,
@@ -536,7 +576,7 @@ const createStyles = (colors: typeof lightColors) =>
       backgroundColor: colors.surfaceVariant,
     },
     saveBtn: {
-      height: 44,
+      height: 48,
       paddingHorizontal: 18,
       borderRadius: 12,
       backgroundColor: colors.primary,
@@ -554,11 +594,16 @@ const createStyles = (colors: typeof lightColors) =>
       color: colors.error,
       marginTop: 10,
     },
+    retryBtn: {
+      minHeight: 44,
+      justifyContent: "center",
+      alignSelf: "flex-start",
+      marginTop: 4,
+    },
     retry: {
       fontFamily: "Poppins_600SemiBold",
       fontSize: 13,
       color: colors.primary,
-      marginTop: 6,
     },
   });
 

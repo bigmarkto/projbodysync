@@ -44,6 +44,11 @@ app.use((req, res, next) => {
 app.use(compression())
 app.use(express.json())
 
+// Health check público (antes das rotas autenticadas)
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
 // Rotas de Autenticação
 app.use('/api/auth', authRoutes)
 

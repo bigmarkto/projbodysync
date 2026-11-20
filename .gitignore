@@ -50,4 +50,13 @@ logs
 Thumbs.db
 .openclaude
 .claude
+.agents/
+memoria/
+*.apk
+*.aab
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
 

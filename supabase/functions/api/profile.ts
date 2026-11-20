@@ -1,0 +1,196 @@
+import { AppError, db } from "./db.ts";
+import { jsonResponse, parseJsonBody, parseJsonColumn } from "./security.ts";
+
+function calculateAge(birthDate: string | Date | null): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getUTCFullYear() - birth.getUTCFullYear();
+  const monthDiff = today.getUTCMonth() - birth.getUTCMonth();
+
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getUTCDate() < birth.getUTCDate())
+  ) {
+    age--;
+  }
+
+  return age;
+}
+
+function calculateBMI(
+  weightKg: number | string | null,
+  heightCm: number | null,
+): number | null {
+  const weight = typeof weightKg === "string"
+    ? parseFloat(weightKg)
+    : weightKg;
+  if (!weight || !heightCm) return null;
+  const heightM = heightCm / 100;
+  return Number((weight / (heightM * heightM)).toFixed(2));
+}
+
+// deno-lint-ignore no-explicit-any
+function mapDbRowToProfile(row: any) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    weightKg: row.weight_kg ? Number(row.weight_kg) : null,
+    heightCm: row.height_cm ? Number(row.height_cm) : null,
+    birthDate: row.birth_date,
+    gender: row.gender,
+    fitnessGoal: row.fitness_goal,
+    experienceLevel: row.experience_level,
+    activityLevel: row.activity_level,
+    workoutDays: row.workout_days,
+    workoutFrequency: row.workout_frequency,
+    lastWorkoutDate: row.last_workout_date,
+    consistencyScore: row.consistency_score,
+    subscriptionType: row.subscription_type,
+    desiredWeightKg: row.desired_weight_kg
+      ? Number(row.desired_weight_kg)
+      : null,
+    hydrationReminder: row.hydration_reminder,
+    desiredModality: row.desired_modality,
+    workoutSchedule: parseJsonColumn(row.workout_schedule),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// deno-lint-ignore no-explicit-any
+function buildProfileResponse(profile: any) {
+  return {
+    profile: {
+      ...profile,
+      age: calculateAge(profile.birthDate),
+      bmi: calculateBMI(profile.weightKg, profile.heightCm),
+    },
+  };
+}
+
+const PROFILE_FIELD_MAP: Record<string, string> = {
+  weightKg: "weight_kg",
+  heightCm: "height_cm",
+  birthDate: "birth_date",
+  gender: "gender",
+  fitnessGoal: "fitness_goal",
+  experienceLevel: "experience_level",
+  activityLevel: "activity_level",
+  workoutDays: "workout_days",
+  workoutFrequency: "workout_frequency",
+  lastWorkoutDate: "last_workout_date",
+  consistencyScore: "consistency_score",
+  subscriptionType: "subscription_type",
+  desiredWeightKg: "desired_weight_kg",
+  hydrationReminder: "hydration_reminder",
+  desiredModality: "desired_modality",
+  workoutSchedule: "workout_schedule",
+};
+
+export async function handleProfileRoutes(
+  req: Request,
+  path: string,
+  userId: string,
+): Promise<Response | null> {
+  if (path !== "/profile") return null;
+
+  if (req.method === "GET") {
+    const result = await db.query(
+      "SELECT * FROM user_profiles WHERE user_id = $1",
+      [userId],
+    );
+    if (result.rows.length === 0) {
+      throw new AppError("Perfil não encontrado", 404);
+    }
+    return jsonResponse(
+      buildProfileResponse(mapDbRowToProfile(result.rows[0])),
+      200,
+    );
+  }
+
+  if (req.method === "POST") {
+    const data = await parseJsonBody(req);
+    const result = await db.query(
+      `INSERT INTO user_profiles (
+        user_id, weight_kg, height_cm, birth_date, gender,
+        fitness_goal, experience_level, activity_level, workout_days, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        weight_kg = EXCLUDED.weight_kg,
+        height_cm = EXCLUDED.height_cm,
+        birth_date = EXCLUDED.birth_date,
+        gender = EXCLUDED.gender,
+        fitness_goal = EXCLUDED.fitness_goal,
+        experience_level = EXCLUDED.experience_level,
+        activity_level = EXCLUDED.activity_level,
+        workout_days = EXCLUDED.workout_days,
+        updated_at = NOW()
+      RETURNING *`,
+      [
+        userId,
+        data.weightKg || null,
+        data.heightCm || null,
+        data.birthDate || null,
+        data.gender || null,
+        data.fitnessGoal || null,
+        data.experienceLevel || null,
+        data.activityLevel || null,
+        data.workoutDays || null,
+      ],
+    );
+
+    return jsonResponse(
+      buildProfileResponse(mapDbRowToProfile(result.rows[0])),
+      200,
+    );
+  }
+
+  if (req.method === "PUT") {
+    const data = await parseJsonBody(req);
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined && value !== null) {
+        const dbColumn = PROFILE_FIELD_MAP[key];
+        if (!dbColumn) continue;
+        updates.push(`${dbColumn} = $${paramIndex}`);
+        if (key === "workoutSchedule" && typeof value === "object") {
+          values.push(JSON.stringify(value));
+        } else {
+          values.push(value);
+        }
+        paramIndex++;
+      }
+    }
+
+    if (updates.length === 0) {
+      throw new AppError("Nenhum campo para atualizar", 400);
+    }
+
+    updates.push("updated_at = NOW()");
+    values.push(userId);
+
+    const result = await db.query(
+      `UPDATE user_profiles
+       SET ${updates.join(", ")}
+       WHERE user_id = $${paramIndex}
+       RETURNING *`,
+      values,
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError("Perfil não encontrado", 404);
+    }
+
+    return jsonResponse(
+      buildProfileResponse(mapDbRowToProfile(result.rows[0])),
+      200,
+    );
+  }
+
+  return null;
+}

@@ -2,12 +2,17 @@
   "name": "bodysync",
   "version": "1.0.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test:app": "node --import ./bodysync-api/node_modules/tsx/dist/loader.mjs --test test/android-build.test.mjs test/frontend-logic.test.ts",
+    "test:api": "npm --prefix bodysync-api test",
+    "test:all": "npm run test:app && npm run test:api",
+    "test": "npm run test:all",
+    "typecheck": "tsc --noEmit && npm --prefix bodysync-api run typecheck"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",

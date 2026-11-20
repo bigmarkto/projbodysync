@@ -81,7 +81,7 @@ const CONNECTION_ERROR_MESSAGE =
   "Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.";
 
 export const friendlyError = (raw: string): string => {
-  if (!raw) return "Não foi possível entrar. Verifique seus dados e tente novamente.";
+  if (!raw) return "Algo deu errado. Tente novamente.";
   const lower = raw.toLowerCase();
   if (
     lower.includes("credenciais") ||
@@ -89,7 +89,7 @@ export const friendlyError = (raw: string): string => {
     lower.includes("senha") ||
     lower.includes("email")
   )
-    return "E-mail ou senha incorretos. Confira os dados ou toque em 'Esqueci minha senha'.";
+    return "E-mail ou senha incorretos.";
   if (
     lower.includes("network") ||
     lower.includes("fetch") ||
@@ -102,7 +102,7 @@ export const friendlyError = (raw: string): string => {
     lower.includes("demorou")
   )
     return CONNECTION_ERROR_MESSAGE;
-  return "Não foi possível entrar agora. Tente novamente em instantes.";
+  return "Algo deu errado. Tente novamente.";
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

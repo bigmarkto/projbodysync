@@ -30,11 +30,11 @@ const ThemeProvider = ({ children }: ThemeProviderProps) => {
       })
       .catch(() => {});
 
-    AccessibilityInfo.isReduceMotionEnabled()
+    AccessibilityInfo?.isReduceMotionEnabled?.()
       .then((enabled) => setReduceMotion(Boolean(enabled)))
       .catch(() => {});
 
-    const sub = AccessibilityInfo.addEventListener?.(
+    const sub = AccessibilityInfo?.addEventListener?.(
       'reduceMotionChanged',
       (enabled) => setReduceMotion(Boolean(enabled)),
     );

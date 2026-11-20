@@ -16,7 +16,7 @@ import { useTheme } from "../context/ThemeProvider";
 import { lightColors } from "../theme/colors";
 import { useAuth } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
-import { API_URL } from "../config/api";
+import { fetchWithApiFallback } from "../config/api";
 
 const ErrorBanner = ({ message, styles, colors }: { message: string; styles: any; colors: typeof lightColors }) => {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -60,7 +60,10 @@ const ErrorBanner = ({ message, styles, colors }: { message: string; styles: any
   );
 };
 
-const friendlyError = (raw: string): string => {
+const CONNECTION_ERROR_MESSAGE =
+  "Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.";
+
+export const friendlyError = (raw: string): string => {
   if (!raw) return "Algo deu errado. Tente novamente.";
   const lower = raw.toLowerCase();
   if (
@@ -73,11 +76,15 @@ const friendlyError = (raw: string): string => {
   if (
     lower.includes("network") ||
     lower.includes("fetch") ||
-    lower.includes("connect")
+    lower.includes("connect") ||
+    lower.includes("conexão") ||
+    lower.includes("econnrefused") ||
+    lower.includes("timeout") ||
+    lower.includes("timed out") ||
+    lower.includes("abort") ||
+    lower.includes("demorou")
   )
-    return "Sem conexão com o servidor. Verifique sua internet.";
-  if (lower.includes("timeout"))
-    return "O servidor demorou para responder. Tente novamente.";
+    return CONNECTION_ERROR_MESSAGE;
   return "Algo deu errado. Tente novamente.";
 };
 
@@ -165,7 +172,7 @@ const LoginScreen = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/auth/forgot-password`, {
+      const res = await fetchWithApiFallback("/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
@@ -180,7 +187,7 @@ const LoginScreen = () => {
           "Se o e-mail estiver cadastrado, enviamos as instruções de recuperação."
       );
     } catch {
-      setErrorMsg("Sem conexão com o servidor.");
+      setErrorMsg(CONNECTION_ERROR_MESSAGE);
     }
   };
 

@@ -1,4 +1,7 @@
 // @ts-nocheck
+process.env.DATABASE_URL ||= 'postgresql://stub:stub@localhost:5432/stub'
+process.env.JWT_SECRET ||= 'test-secret-key-for-unit-tests-123456'
+
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')

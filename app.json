@@ -13,9 +13,9 @@
       "supportsTablet": true
     },
     "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#0EA5E9"
-      }
+      "package": "com.bodysync.app",
+      "versionCode": 1,
+      "usesCleartextTraffic": true
     },
     "plugins": [
       "expo-font"

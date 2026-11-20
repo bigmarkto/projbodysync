@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test src/__tests__/audit-fixes.test.ts",
+    "test": "tsx --test src/__tests__/audit-fixes.test.ts src/__tests__/trainer.test.ts src/__tests__/modules-suite.test.ts",
+    "typecheck": "tsc --noEmit",
     "dev": "tsx watch src/server.ts",
     "seed": "tsx src/scripts/seed-wger.ts",
     "translate": "tsx src/scripts/translate-exercises.ts",

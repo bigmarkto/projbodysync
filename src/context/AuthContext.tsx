@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { API_URL } from '../config/api'
+import { fetchWithApiFallback, loadCustomApiUrl } from '../config/api'
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: '@bodysync:accessToken',
@@ -116,7 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         )
         if (!storedRefresh) return null
 
-        const response = await fetch(`${API_URL}/auth/refresh`, {
+        const response = await fetchWithApiFallback('/auth/refresh', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken: storedRefresh }),
@@ -156,6 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const restoreSession = async () => {
       try {
+        await loadCustomApiUrl()
         const [accessToken, refreshToken, userJson] =
           await AsyncStorage.multiGet([
             STORAGE_KEYS.ACCESS_TOKEN,
@@ -232,13 +233,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   )
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await fetchWithApiFallback('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     })
 
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
       throw new Error(data.error || 'Credenciais inválidas')
@@ -253,7 +254,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         STORAGE_KEYS.REFRESH_TOKEN
       )
       if (refreshToken) {
-        await fetch(`${API_URL}/auth/logout`, {
+        await fetchWithApiFallback('/auth/logout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),

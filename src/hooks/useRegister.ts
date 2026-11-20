@@ -1,9 +1,7 @@
-import { useApi } from './useApi'
+import { fetchWithApiFallback } from '../config/api'
 import { RegisterData } from '../screens/Registration/RegisterContext'
 
 export const useRegisterApi = () => {
-  const { request } = useApi()
-
   const register = async (data: RegisterData) => {
     const boolDays = Array(7).fill(false)
     data.workoutDays.forEach(d => {
@@ -43,12 +41,13 @@ export const useRegisterApi = () => {
       },
     }
 
-    const res = await request('/auth/register', {
+    const res = await fetchWithApiFallback('/auth/register', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
 
-    const json = await res.json()
+    const json = await res.json().catch(() => ({}))
 
     return { res, json }
   }

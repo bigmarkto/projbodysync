@@ -56,11 +56,13 @@ export const sessionService = {
   // Estatísticas de treino do usuário
   async getStats(userId: string): Promise<WorkoutStats> {
     const profileRes = await db.query(
-      'SELECT workout_schedule FROM user_profiles WHERE user_id = $1',
+      'SELECT workout_schedule, created_at FROM user_profiles WHERE user_id = $1',
       [userId]
     )
     const days = scheduledDays(profileRes.rows[0]?.workout_schedule)
     const scheduledPerWeek = days.filter(Boolean).length
+    const createdAtRaw = profileRes.rows[0]?.created_at
+    const createdDateKey = createdAtRaw ? dateKey(new Date(createdAtRaw)) : null
 
     const aggRes = await db.query(
       `SELECT
@@ -103,6 +105,7 @@ export const sessionService = {
       const scheduled = days[i]
       const isToday = key === todayKey
       const isFuture = key > todayKey
+      const isBeforeCreation = createdDateKey !== null && key < createdDateKey
       if (done) thisWeek++
       week.push({
         date: key,
@@ -110,7 +113,7 @@ export const sessionService = {
         label: WEEK_LABELS[i],
         scheduled,
         done,
-        missed: scheduled && !done && !isFuture && !isToday,
+        missed: scheduled && !done && !isFuture && !isToday && !isBeforeCreation,
         isToday,
         isFuture,
       })
@@ -120,9 +123,10 @@ export const sessionService = {
     let streak = 0
     for (let i = 0; i < 90; i++) {
       const d = addDaysUTC(todayAnchor, -i)
+      const key = d.toISOString().slice(0, 10)
+      if (createdDateKey !== null && key < createdDateKey) break
       const wd = d.getUTCDay()
       if (!days[wd]) continue
-      const key = d.toISOString().slice(0, 10)
       const done = doneDates.has(key)
       if (done) {
         streak++
@@ -138,9 +142,11 @@ export const sessionService = {
     let doneScheduled = 0
     for (let i = 1; i <= 30; i++) {
       const d = addDaysUTC(todayAnchor, -i)
+      const key = d.toISOString().slice(0, 10)
+      if (createdDateKey !== null && key < createdDateKey) break
       if (!days[d.getUTCDay()]) continue
       scheduledCount++
-      if (doneDates.has(d.toISOString().slice(0, 10))) doneScheduled++
+      if (doneDates.has(key)) doneScheduled++
     }
     const adherencePct =
       scheduledCount > 0

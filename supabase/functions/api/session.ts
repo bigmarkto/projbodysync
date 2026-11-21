@@ -51,12 +51,19 @@ export async function handleSessionRoutes(
   }
 
   if (path === "/sessions/stats" && req.method === "GET") {
-    const profileRes = await db.query<{ workout_schedule: unknown }>(
-      "SELECT workout_schedule FROM user_profiles WHERE user_id = $1",
+    const profileRes = await db.query<{
+      workout_schedule: unknown;
+      created_at: string | Date | null;
+    }>(
+      "SELECT workout_schedule, created_at FROM user_profiles WHERE user_id = $1",
       [userId],
     );
     const days = scheduledDays(profileRes.rows[0]?.workout_schedule);
     const scheduledPerWeek = days.filter(Boolean).length;
+    const createdAtRaw = profileRes.rows[0]?.created_at;
+    const createdDateKey = createdAtRaw
+      ? dateKey(new Date(createdAtRaw))
+      : null;
 
     const aggRes = await db.query<{
       total: number;
@@ -102,6 +109,7 @@ export async function handleSessionRoutes(
       const scheduled = days[i];
       const isToday = key === todayKey;
       const isFuture = key > todayKey;
+      const isBeforeCreation = createdDateKey !== null && key < createdDateKey;
       if (done) thisWeek++;
       week.push({
         date: key,
@@ -109,7 +117,7 @@ export async function handleSessionRoutes(
         label: WEEK_LABELS[i],
         scheduled,
         done,
-        missed: scheduled && !done && !isFuture && !isToday,
+        missed: scheduled && !done && !isFuture && !isToday && !isBeforeCreation,
         isToday,
         isFuture,
       });
@@ -118,9 +126,10 @@ export async function handleSessionRoutes(
     let streak = 0;
     for (let i = 0; i < 90; i++) {
       const d = addDaysUTC(todayAnchor, -i);
+      const key = d.toISOString().slice(0, 10);
+      if (createdDateKey !== null && key < createdDateKey) break;
       const wd = d.getUTCDay();
       if (!days[wd]) continue;
-      const key = d.toISOString().slice(0, 10);
       const done = doneDates.has(key);
       if (done) {
         streak++;
@@ -135,9 +144,11 @@ export async function handleSessionRoutes(
     let doneScheduled = 0;
     for (let i = 1; i <= 30; i++) {
       const d = addDaysUTC(todayAnchor, -i);
+      const key = d.toISOString().slice(0, 10);
+      if (createdDateKey !== null && key < createdDateKey) break;
       if (!days[d.getUTCDay()]) continue;
       scheduledCount++;
-      if (doneDates.has(d.toISOString().slice(0, 10))) doneScheduled++;
+      if (doneDates.has(key)) doneScheduled++;
     }
     const adherencePct = scheduledCount > 0
       ? Math.round((doneScheduled / scheduledCount) * 100)

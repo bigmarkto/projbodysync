@@ -1491,7 +1491,7 @@ test('modules/session: dateKey, isValidIsoDate, create e getStats', async () => 
 
   await withDbStub(
     async (sql) => {
-      if (/SELECT workout_schedule FROM user_profiles/i.test(sql)) {
+      if (/SELECT workout_schedule.*FROM user_profiles/i.test(sql)) {
         return { rows: [{ workout_schedule: { days: scheduleDays, time: '18:00' } }] }
       }
       if (/AVG\(EXTRACT/i.test(sql)) {
@@ -1522,7 +1522,7 @@ test('modules/session: dateKey, isValidIsoDate, create e getStats', async () => 
   // getStats with no scheduled days returns adherencePct null and streak 0
   await withDbStub(
     async (sql) => {
-      if (/SELECT workout_schedule FROM user_profiles/i.test(sql)) {
+      if (/SELECT workout_schedule.*FROM user_profiles/i.test(sql)) {
         return { rows: [{ workout_schedule: null }] }
       }
       if (/AVG\(EXTRACT/i.test(sql)) {
@@ -1537,6 +1537,35 @@ test('modules/session: dateKey, isValidIsoDate, create e getStats', async () => 
       assert.equal(emptyStats.scheduledPerWeek, 0)
       assert.equal(emptyStats.streak, 0)
       assert.equal(emptyStats.adherencePct, null)
+    }
+  )
+
+  // getStats for newly created account today does not count pre-signup days as missed
+  await withDbStub(
+    async (sql) => {
+      if (/SELECT workout_schedule.*FROM user_profiles/i.test(sql)) {
+        return {
+          rows: [
+            {
+              workout_schedule: {
+                days: [true, true, true, true, true, true, true],
+                time: '18:00',
+              },
+              created_at: new Date().toISOString(),
+            },
+          ],
+        }
+      }
+      if (/AVG\(EXTRACT/i.test(sql)) {
+        return { rows: [{ total: 0, avg_seconds: null }] }
+      }
+      return { rows: [] }
+    },
+    async () => {
+      const newStats = await sessionService.getStats('u-new')
+      assert.equal(newStats.week.filter((d) => d.missed).length, 0)
+      assert.equal(newStats.adherencePct, null)
+      assert.equal(newStats.streak, 0)
     }
   )
 })
